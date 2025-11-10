@@ -11,18 +11,21 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Admin Dashboard',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: ChangeNotifierProvider( 
-        create: (context) => AdminProvider(
-          AdminService('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQsImVtYWlsIjoic2h1dHRhbnByYW1lc3RpQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MjY5OTIwMCwiZXhwIjoxNzYyNzg1NjAwfQ.7pWlM6YBlkJgZktMqrNXc9ouJF8dP00bf1rSKRHwEzI'), // Ganti dengan token yang valid
-        ),
-        child: AdminDashboardScreen(
-          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQsImVtYWlsIjoic2h1dHRhbnByYW1lc3RpQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MjY5OTIwMCwiZXhwIjoxNzYyNzg1NjAwfQ.7pWlM6YBlkJgZktMqrNXc9ouJF8dP00bf1rSKRHwEzI', // Ganti dengan token yang valid
-        ),
+      title: 'WARGA KITA',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        fontFamily:
+            'Inter', // Gunakan font Inter atau ganti dengan font yang tersedia
+      ),
+      debugShowCheckedModeBanner: false,
+      home: ChangeNotifierProvider(
+        create: (context) => AdminProvider(AdminService('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQsImVtYWlsIjoic2h1dHRhbnByYW1lc3RpQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MjY5OTIwMCwiZXhwIjoxNzYyNzg1NjAwfQ.7pWlM6YBlkJgZktMqrNXc9ouJF8dP00bf1rSKRHwEzI')),
+        child: AdminDashboardScreen(token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQsImVtYWlsIjoic2h1dHRhbnByYW1lc3RpQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MjY5OTIwMCwiZXhwIjoxNzYyNzg1NjAwfQ.7pWlM6YBlkJgZktMqrNXc9ouJF8dP00bf1rSKRHwEzI'),
       ),
     );
   }

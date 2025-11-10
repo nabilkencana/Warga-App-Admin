@@ -1,9 +1,8 @@
 // services/admin_service.dart
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
-import 'package:user_management_app/models/dashboard_stats.dart';
-import 'package:user_management_app/models/user.dart';
+import '../models/dashboard_stats.dart';
+import '../models/user.dart';
 
 class AdminService {
   static const String baseUrl = 'http://localhost:3000/admin';
@@ -22,12 +21,8 @@ class AdminService {
     try {
       final headers = await _getHeaders();
       final url = Uri.parse('$baseUrl/dashboard/stats');
-      print('GET: $url');
 
       final response = await http.get(url, headers: headers);
-
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -47,12 +42,8 @@ class AdminService {
     try {
       final headers = await _getHeaders();
       final url = Uri.parse('$baseUrl/recent/users');
-      print('GET: $url');
 
       final response = await http.get(url, headers: headers);
-
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);

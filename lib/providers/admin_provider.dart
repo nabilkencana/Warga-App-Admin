@@ -1,8 +1,8 @@
 // providers/admin_provider.dart
 import 'package:flutter/foundation.dart';
-import 'package:user_management_app/models/dashboard_stats.dart';
-import 'package:user_management_app/models/user.dart';
-import 'package:user_management_app/services/admin_service.dart';
+import '../services/admin_service.dart';
+import '../models/dashboard_stats.dart';
+import '../models/user.dart';
 
 class AdminProvider with ChangeNotifier {
   final AdminService _adminService;
@@ -11,7 +11,6 @@ class AdminProvider with ChangeNotifier {
   List<User> _recentUsers = [];
   bool _isLoading = false;
   String? _error;
-  bool _isInitialized = false;
 
   AdminProvider(this._adminService);
 
@@ -19,18 +18,14 @@ class AdminProvider with ChangeNotifier {
   List<User> get recentUsers => _recentUsers;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isInitialized => _isInitialized;
 
   Future<void> loadDashboardData() async {
-    if (_isLoading) return;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
       await Future.wait([_loadDashboardStats(), _loadRecentUsers()]);
-      _isInitialized = true;
     } catch (e) {
       _error = e.toString();
       print('Error loading dashboard data: $e');
@@ -52,7 +47,6 @@ class AdminProvider with ChangeNotifier {
   Future<void> _loadRecentUsers() async {
     try {
       _recentUsers = await _adminService.getRecentUsers();
-      print('Loaded ${_recentUsers.length} users');
     } catch (e) {
       print('Error loading recent users: $e');
       rethrow;
@@ -62,10 +56,5 @@ class AdminProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
-  }
-
-  void refresh() {
-    _isInitialized = false;
-    loadDashboardData();
   }
 }

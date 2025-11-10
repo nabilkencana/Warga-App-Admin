@@ -1,7 +1,6 @@
-// models/user.dart
 class User {
-  final int id; // DIUBAH: String -> int
-  final String namaLengkap; // SESUAI RESPONSE
+  final int id;
+  final String namaLengkap;
   final String email;
   final String role;
   final DateTime createdAt;
@@ -18,7 +17,9 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'] is int ? json['id'] : int.tryParse(json['id'] ?? '0') ?? 0,
+      id: json['id'] is int
+          ? json['id']
+          : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       namaLengkap: json['namaLengkap']?.toString() ?? 'No Name',
       email: json['email']?.toString() ?? '',
       role: json['role']?.toString() ?? 'user',
@@ -29,16 +30,5 @@ class User {
         json['updatedAt']?.toString() ?? DateTime.now().toString(),
       ),
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'namaLengkap': namaLengkap,
-      'email': email,
-      'role': role,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-    };
   }
 }

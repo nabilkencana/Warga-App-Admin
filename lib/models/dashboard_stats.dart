@@ -1,4 +1,3 @@
-// models/dashboard_stats.dart
 class DashboardStats {
   final int totalUsers;
   final int totalReports;
