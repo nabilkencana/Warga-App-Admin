@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(
           create: (context) =>
-              AdminProvider(AdminService('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYyODYzOTQ0LCJleHAiOjE3NjI5NTAzNDR9.jSqWubeNxjx2_HcTuq0zQKOClcmBRlQQWJtnyJ4vhEg')),
+              AdminProvider(AdminService('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYyOTU4OTg4LCJleHAiOjE3NjMwNDUzODh9.yGpxaXr3TvnRnOBnmX-vy4ELusHh144OuFvzeVnoRs0')),
         ),
         ChangeNotifierProvider(create: (context) => AnnouncementProvider()),
         ChangeNotifierProvider(create: (context) => ReportProvider()),
@@ -43,7 +43,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         initialRoute: '/',
         routes: {
-          '/': (context) => AdminDashboardScreen(token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYyODYzOTQ0LCJleHAiOjE3NjI5NTAzNDR9.jSqWubeNxjx2_HcTuq0zQKOClcmBRlQQWJtnyJ4vhEg'),
+          '/': (context) => AdminDashboardScreen(token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYyOTU4OTg4LCJleHAiOjE3NjMwNDUzODh9.yGpxaXr3TvnRnOBnmX-vy4ELusHh144OuFvzeVnoRs0'),
 
           '/users': (context) => UsersScreen(),
           '/announcements': (context) => AnnouncementsScreen(),

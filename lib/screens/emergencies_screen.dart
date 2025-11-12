@@ -74,8 +74,6 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
 
           return Column(
             children: [
-              // Emergency Alert Banner
-              _buildEmergencyAlert(provider),
               
               // Search Bar
               _buildSearchBar(),
@@ -116,53 +114,6 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
     );
   }
 
-  Widget _buildEmergencyAlert(EmergencyProvider provider) {
-    final activeEmergencies = provider.emergencies.where((e) => e.status == 'ACTIVE').length;
-    
-    if (activeEmergencies == 0) return SizedBox();
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.red, Colors.red[800]!],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.warning, color: Colors.white, size: 24),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PERINGATAN DARURAT',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Ada $activeEmergencies keadaan darurat aktif di sekitar Anda',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSearchBar() {
     return Padding(

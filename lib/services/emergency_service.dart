@@ -103,14 +103,18 @@ class EmergencyService {
       };
 
       // Only add fields if they have values
-      if (details != null && details.isNotEmpty)
+      if (details != null && details.isNotEmpty) {
         requestData['details'] = details;
-      if (location != null && location.isNotEmpty)
+      }
+      if (location != null && location.isNotEmpty) {
         requestData['location'] = location;
-      if (latitude != null && latitude.isNotEmpty)
+      }
+      if (latitude != null && latitude.isNotEmpty) {
         requestData['latitude'] = latitude;
-      if (longitude != null && longitude.isNotEmpty)
+      }
+      if (longitude != null && longitude.isNotEmpty) {
         requestData['longitude'] = longitude;
+      }
       if (userId != null) requestData['userId'] = userId;
 
       final response = await http.post(
@@ -191,14 +195,16 @@ class EmergencyService {
       final Map<String, dynamic> requestData = {};
 
       if (userId != null) requestData['userId'] = userId;
-      if (userName != null && userName.isNotEmpty)
+      if (userName != null && userName.isNotEmpty) {
         requestData['userName'] = userName;
-      if (userPhone != null && userPhone.isNotEmpty)
+      }
+      if (userPhone != null && userPhone.isNotEmpty) {
         requestData['userPhone'] = userPhone;
+      }
       if (skills != null && skills.isNotEmpty) requestData['skills'] = skills;
 
       final response = await http.post(
-        Uri.parse('$baseUrl/emergency/$emergencyId/volunteers'),
+        Uri.parse('$baseUrl/emergency/$emergencyId/volunteer'),
         headers: await _getHeaders(),
         body: json.encode(requestData),
       );

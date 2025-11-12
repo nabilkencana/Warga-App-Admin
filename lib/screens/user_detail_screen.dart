@@ -759,7 +759,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             Text('Pilih role baru untuk ${user.namaLengkap}:'),
             SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: user.role,
+              initialValue: user.role,
               items: ['user', 'admin', 'volunteer']
                   .map(
                     (role) => DropdownMenuItem(

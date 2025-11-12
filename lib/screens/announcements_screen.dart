@@ -576,7 +576,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   ),
                   SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedAudience,
+                    initialValue: selectedAudience,
                     decoration: InputDecoration(
                       labelText: 'Target Audience',
                       border: OutlineInputBorder(),
@@ -734,7 +734,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   ),
                   SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedAudience,
+                    initialValue: selectedAudience,
                     decoration: InputDecoration(
                       labelText: 'Target Audience',
                       border: OutlineInputBorder(),

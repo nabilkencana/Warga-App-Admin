@@ -82,8 +82,9 @@ class Emergency {
     if (difference.inMinutes < 60) return '${difference.inMinutes}m yang lalu';
     if (difference.inHours < 24) return '${difference.inHours}j yang lalu';
     if (difference.inDays < 7) return '${difference.inDays}h yang lalu';
-    if (difference.inDays < 30)
+    if (difference.inDays < 30) {
       return '${(difference.inDays / 7).floor()}minggu yang lalu';
+    }
     return '${(difference.inDays / 30).floor()}bulan yang lalu';
   }
 

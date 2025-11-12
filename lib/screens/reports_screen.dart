@@ -663,7 +663,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                   SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedCategory,
+                    initialValue: selectedCategory,
                     decoration: InputDecoration(
                       labelText: 'Kategori',
                       border: OutlineInputBorder(),
@@ -782,7 +782,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ),
                   SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedCategory,
+                    initialValue: selectedCategory,
                     decoration: InputDecoration(
                       labelText: 'Kategori',
                       border: OutlineInputBorder(),
@@ -875,7 +875,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 Text('Pilih status baru untuk laporan:'),
                 SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: selectedStatus,
+                  initialValue: selectedStatus,
                   decoration: InputDecoration(
                     labelText: 'Status',
                     border: OutlineInputBorder(),
