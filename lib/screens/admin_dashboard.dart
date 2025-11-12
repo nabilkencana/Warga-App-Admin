@@ -13,7 +13,7 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  int _selectedTab = 0; // 0: Semua, 1: Poling Banyak, 2: Belum ditinjau
+  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -31,13 +31,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header Section
             _buildHeader(),
-
-            // Tab Section
             _buildTabSection(),
-
-            // Dashboard Stats Section
             Expanded(child: _buildDashboardContent()),
           ],
         ),
@@ -57,7 +52,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       child: Row(
         children: [
-          // App Logo/Name
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -81,7 +75,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
           Spacer(),
-          // Notification Icon
           Container(
             padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -166,10 +159,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           CircularProgressIndicator(color: Colors.blue[800]),
           SizedBox(height: 16),
-          Text(
-            'Memuat data...',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
+          Text('Memuat data...', style: TextStyle(color: Colors.grey[600])),
         ],
       ),
     );
@@ -215,9 +205,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildStatsGrid(AdminProvider adminProvider) {
     final stats = adminProvider.dashboardStats;
-    final users = adminProvider.recentUsers;
 
-    // Data statistik - menggunakan data real dari API atau placeholder
     final statItems = [
       StatItem(
         title: 'Data Warga',
@@ -226,8 +214,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.people_outline,
         color: Colors.blue,
         onTap: () {
-          // Navigate to users page
-          print('Data Warga tapped');
+          Navigator.pushNamed(context, '/users');
         },
       ),
       StatItem(
@@ -237,8 +224,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.announcement_outlined,
         color: Colors.orange,
         onTap: () {
-          // Navigate to announcements page
-          print('Pengumuman tapped');
+          Navigator.pushNamed(context, '/announcements');
         },
       ),
       StatItem(
@@ -248,8 +234,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.warning_amber_outlined,
         color: Colors.red,
         onTap: () {
-          // Navigate to emergencies page
-          print('Darurat tapped');
+          Navigator.pushNamed(context, '/emergencies');
         },
       ),
       StatItem(
@@ -259,8 +244,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.volunteer_activism_outlined,
         color: Colors.green,
         onTap: () {
-          // Navigate to volunteers page
-          print('Volunteers tapped');
+          Navigator.pushNamed(context, '/volunteers');
         },
       ),
       StatItem(
@@ -270,8 +254,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.report_problem_outlined,
         color: Colors.purple,
         onTap: () {
-          // Navigate to reports page
-          print('Laporan tapped');
+          Navigator.pushNamed(context, '/reports');
         },
       ),
     ];
@@ -306,7 +289,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Icon and Title
               Row(
                 children: [
                   Container(
@@ -332,8 +314,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ],
               ),
-
-              // Count and Subtitle
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
