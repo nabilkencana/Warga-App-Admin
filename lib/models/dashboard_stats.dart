@@ -25,4 +25,6 @@ class DashboardStats {
       totalAnnouncements: json['totalAnnouncements'] ?? 0,
     );
   }
+
+  toJson() {}
 }

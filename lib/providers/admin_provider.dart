@@ -23,6 +23,122 @@ class AdminProvider with ChangeNotifier {
   bool get isLoadingUsers => _isLoadingUsers;
   String? get error => _error;
 
+  // Hapus property duplikat 'unreadNotifications' dan gunakan getter ini saja
+  int get unreadNotifications {
+    // Hitung berdasarkan data real dari dashboard
+    if (_dashboardStats == null) return 0;
+
+    int count = 0;
+
+    // Hitung dari darurat aktif
+    if (_dashboardStats!.activeEmergencies > 0) {
+      count += _dashboardStats!.activeEmergencies;
+    }
+
+    // Asumsikan 30% laporan belum ditinjau
+    if (_dashboardStats!.totalReports > 0) {
+      count += (_dashboardStats!.totalReports * 0.3).round();
+    }
+
+    // Tambahkan notifikasi untuk user baru (jika ada)
+    if (_recentUsers.isNotEmpty) {
+      // Asumsikan user yang baru ditambahkan dalam 24 jam butuh perhatian
+      final now = DateTime.now();
+      final newUsersCount = _recentUsers.where((user) {
+        final difference = now.difference(user.createdAt ?? now);
+        return difference.inHours < 24;
+      }).length;
+
+      if (newUsersCount > 0) {
+        count += 1; // Satu notifikasi untuk semua user baru
+      }
+    }
+
+    return count;
+  }
+
+  // Method untuk mendapatkan notifikasi berdasarkan data real
+  List<Map<String, dynamic>> get notifications {
+    final List<Map<String, dynamic>> notifications = [];
+
+    if (_dashboardStats == null) return notifications;
+
+    // Notifikasi darurat
+    if (_dashboardStats!.activeEmergencies > 0) {
+      notifications.add({
+        'id': 'emergency_${DateTime.now().millisecondsSinceEpoch}',
+        'type': 'emergency',
+        'title': 'Darurat Aktif',
+        'message':
+            'Ada ${_dashboardStats!.activeEmergencies} laporan darurat yang membutuhkan perhatian segera',
+        'time': 'Baru saja',
+        'isRead': false,
+      });
+    }
+
+    // Notifikasi laporan
+    if (_dashboardStats!.totalReports > 0) {
+      final pendingReports = (_dashboardStats!.totalReports * 0.3).round();
+      if (pendingReports > 0) {
+        notifications.add({
+          'id': 'reports_${DateTime.now().millisecondsSinceEpoch}',
+          'type': 'report',
+          'title': 'Laporan Menunggu',
+          'message':
+              '$pendingReports laporan belum ditinjau dan membutuhkan tindakan',
+          'time': 'Hari ini',
+          'isRead': false,
+        });
+      }
+    }
+
+    // Notifikasi pengumuman
+    if (_dashboardStats!.totalAnnouncements > 0) {
+      notifications.add({
+        'id': 'announcements_${DateTime.now().millisecondsSinceEpoch}',
+        'type': 'announcement',
+        'title': 'Pengumuman Aktif',
+        'message':
+            '${_dashboardStats!.totalAnnouncements} pengumuman sedang berjalan',
+        'time': 'Minggu ini',
+        'isRead': true,
+      });
+    }
+
+    // Notifikasi user baru
+    if (_recentUsers.isNotEmpty) {
+      final now = DateTime.now();
+      final newUsersCount = _recentUsers.where((user) {
+        final difference = now.difference(user.createdAt ?? now);
+        return difference.inHours < 24;
+      }).length;
+
+      if (newUsersCount > 0) {
+        notifications.add({
+          'id': 'new_users_${DateTime.now().millisecondsSinceEpoch}',
+          'type': 'user',
+          'title': 'User Baru',
+          'message': '$newUsersCount user baru bergabung hari ini',
+          'time': 'Hari ini',
+          'isRead': false,
+        });
+      }
+    }
+
+    // Notifikasi statistik total
+    notifications.add({
+      'id': 'stats_${DateTime.now().millisecondsSinceEpoch}',
+      'type': 'stats',
+      'title': 'Statistik Sistem',
+      'message':
+          'Total ${_dashboardStats!.totalUsers} warga, ${_dashboardStats!.totalReports} laporan',
+      'time': 'Bulan ini',
+      'isRead': true,
+    });
+
+    return notifications;
+  }
+
   Future<void> loadDashboardData() async {
     _isLoading = true;
     _error = null;
@@ -42,7 +158,7 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  // METHOD BARU UNTUK LOAD SEMUA USER
+  // METHOD UNTUK LOAD SEMUA USER
   Future<void> loadAllUsers() async {
     _isLoadingUsers = true;
     _error = null;
@@ -62,6 +178,7 @@ class AdminProvider with ChangeNotifier {
   Future<void> _loadDashboardStats() async {
     try {
       _dashboardStats = await _adminService.getDashboardStats();
+      print('Dashboard stats loaded: ${_dashboardStats?.toJson()}');
     } catch (e) {
       print('Error loading dashboard stats: $e');
       rethrow;
@@ -78,7 +195,7 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  // METHOD BARU UNTUK LOAD SEMUA USER
+  // METHOD UNTUK LOAD SEMUA USER
   Future<void> _loadAllUsers() async {
     try {
       _allUsers = await _adminService.getAllUsers();
@@ -101,6 +218,49 @@ class AdminProvider with ChangeNotifier {
     if (_recentUsers.length > 5) {
       _recentUsers = _recentUsers.take(5).toList(); // Maintain hanya 5 terbaru
     }
+    notifyListeners();
+  }
+
+  // Method untuk update user
+  void updateUser(User updatedUser) {
+    final index = _allUsers.indexWhere((user) => user.id == updatedUser.id);
+    if (index != -1) {
+      _allUsers[index] = updatedUser;
+    }
+
+    final recentIndex = _recentUsers.indexWhere(
+      (user) => user.id == updatedUser.id,
+    );
+    if (recentIndex != -1) {
+      _recentUsers[recentIndex] = updatedUser;
+    }
+
+    notifyListeners();
+  }
+
+  // Method untuk menghapus user
+  void deleteUser(String userId) {
+    _allUsers.removeWhere((user) => user.id == userId);
+    _recentUsers.removeWhere((user) => user.id == userId);
+    notifyListeners();
+  }
+
+  // Method untuk refresh data
+  Future<void> refreshData() async {
+    await loadDashboardData();
+  }
+
+  // Method untuk mark notification as read (placeholder untuk future implementation)
+  void markNotificationAsRead(String notificationId) {
+    // Implementation untuk mark notification as read
+    // Untuk sekarang, kita hanya notify listeners
+    notifyListeners();
+  }
+
+  // Method untuk mark all notifications as read
+  void markAllNotificationsAsRead() {
+    // Implementation untuk mark all notifications as read
+    // Untuk sekarang, kita hanya notify listeners
     notifyListeners();
   }
 }
