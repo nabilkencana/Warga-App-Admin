@@ -1,5 +1,8 @@
 // screens/reports_screen.dart
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/report_provider.dart';
 import '../models/report.dart';
@@ -22,6 +25,79 @@ class _ReportsScreenState extends State<ReportsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
     });
+  }
+
+  ImageProvider _getImageProvider(String imageUrl) {
+    if (imageUrl.startsWith('http')) {
+      return NetworkImage(imageUrl);
+    } else if (imageUrl.startsWith('file://')) {
+      return FileImage(File(imageUrl.replaceFirst('file://', '')));
+    } else {
+      return FileImage(File(imageUrl));
+    }
+  }
+
+  Widget _buildImageWidget(String imageUrl) {
+    if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: 250,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            height: 250,
+            decoration: BoxDecoration(color: Colors.grey[200]),
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                    : null,
+                color: Colors.purple,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return _buildErrorImage();
+        },
+      );
+    } else {
+      // Handle local file
+      String filePath = imageUrl.startsWith('file://')
+          ? imageUrl.replaceFirst('file://', '')
+          : imageUrl;
+
+      return Image.file(
+        File(filePath),
+        width: double.infinity,
+        height: 250,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return _buildErrorImage();
+        },
+      );
+    }
+  }
+
+  Widget _buildErrorImage() {
+    return Container(
+      height: 250,
+      decoration: BoxDecoration(color: Colors.grey[200]),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 40, color: Colors.grey),
+          SizedBox(height: 8),
+          Text(
+            'Gagal memuat gambar',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _initializeData() async {
@@ -673,7 +749,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Image preview jika ada
+                // Image preview jika ada - DIPERBAIKI
                 if (report.imageUrl != null && report.imageUrl!.isNotEmpty) ...[
                   Container(
                     height: 140,
@@ -681,7 +757,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       image: DecorationImage(
-                        image: NetworkImage(report.imageUrl!),
+                        image: _getImageProvider(report.imageUrl!),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -925,7 +1001,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         setState(() => selectedCategory = value!),
                   ),
                   const SizedBox(height: 16),
-                  // Bagian upload gambar
+                  // Bagian upload gambar - DIPERBAIKI
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -956,14 +1032,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         ),
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
-                          onPressed: () {
-                            // Simulasi upload gambar
-                            // Dalam implementasi nyata, ini akan memanggil camera/gallery
-                            setState(() {
-                              imageUrl =
-                                  'https://picsum.photos/400/300?random=${DateTime.now().millisecondsSinceEpoch}';
-                            });
-                            _showSuccessSnackbar('Gambar berhasil diunggah');
+                          onPressed: () async {
+                            // Pilih gambar dari gallery atau camera
+                            final XFile? image = await ImagePicker().pickImage(
+                              source: ImageSource.gallery,
+                              maxWidth: 1200,
+                              maxHeight: 1200,
+                              imageQuality: 80,
+                            );
+
+                            if (image != null) {
+                              setState(() {
+                                // Simpan path file lokal
+                                imageUrl = image.path;
+                              });
+                              _showSuccessSnackbar('Gambar berhasil diunggah');
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.purple,
@@ -974,6 +1058,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ],
                     ),
                   ),
+                  // Preview gambar yang dipilih - DIPERBAIKI
                   if (imageUrl != null) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -981,7 +1066,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         image: DecorationImage(
-                          image: NetworkImage(imageUrl!),
+                          image: _getImageProvider(imageUrl!),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -1105,7 +1190,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         setState(() => selectedCategory = value!),
                   ),
                   const SizedBox(height: 16),
-                  // Bagian edit gambar
+                  // Bagian edit gambar - DIPERBAIKI
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -1126,7 +1211,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               image: DecorationImage(
-                                image: NetworkImage(imageUrl!),
+                                image: _getImageProvider(imageUrl!),
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -1151,15 +1236,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: () {
-                                  // Simulasi upload gambar baru
-                                  setState(() {
-                                    imageUrl =
-                                        'https://picsum.photos/400/300?random=${DateTime.now().millisecondsSinceEpoch}';
-                                  });
-                                  _showSuccessSnackbar(
-                                    'Gambar berhasil diubah',
-                                  );
+                                onPressed: () async {
+                                  final XFile? image = await ImagePicker()
+                                      .pickImage(
+                                        source: ImageSource.gallery,
+                                        maxWidth: 1200,
+                                        maxHeight: 1200,
+                                        imageQuality: 80,
+                                      );
+                                  if (image != null) {
+                                    setState(() {
+                                      imageUrl = image.path;
+                                    });
+                                    _showSuccessSnackbar(
+                                      'Gambar berhasil diubah',
+                                    );
+                                  }
                                 },
                                 icon: const Icon(
                                   Icons.camera_alt_rounded,
@@ -1565,7 +1657,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Gambar yang dilaporkan - SECTION YANG DIPERBAIKI
+                      // Gambar yang dilaporkan - DIPERBAIKI
                       if (report.imageUrl != null &&
                           report.imageUrl!.isNotEmpty) ...[
                         const Text(
@@ -1592,63 +1684,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             borderRadius: BorderRadius.circular(12),
                             child: Column(
                               children: [
-                                Image.network(
-                                  report.imageUrl!,
-                                  width: double.infinity,
-                                  height: 250,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                        if (loadingProgress == null)
-                                          return child;
-                                        return Container(
-                                          height: 250,
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[200],
-                                          ),
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              value:
-                                                  loadingProgress
-                                                          .expectedTotalBytes !=
-                                                      null
-                                                  ? loadingProgress
-                                                            .cumulativeBytesLoaded /
-                                                        loadingProgress
-                                                            .expectedTotalBytes!
-                                                  : null,
-                                              color: Colors.purple,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      height: 250,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.error_outline_rounded,
-                                            size: 40,
-                                            color: Colors.grey,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Gagal memuat gambar',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
+                                _buildImageWidget(report.imageUrl!),
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   color: Colors.grey[50],
@@ -1848,7 +1884,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  // Method untuk menampilkan gambar full screen
+  // Method untuk menampilkan gambar full screen - DIPERBAIKI
   void _showImageFullScreen(
     BuildContext context,
     String imageUrl,
@@ -1873,39 +1909,38 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 minScale: 0.5,
                 maxScale: 3.0,
                 child: Center(
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: CircularProgressIndicator(
-                          value: loadingProgress.expectedTotalBytes != null
-                              ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                              : null,
-                          color: Colors.white,
+                  child: imageUrl.startsWith('http')
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: Colors.white,
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildFullScreenError();
+                          },
+                        )
+                      : Image.file(
+                          File(
+                            imageUrl.startsWith('file://')
+                                ? imageUrl.replaceFirst('file://', '')
+                                : imageUrl,
+                          ),
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildFullScreenError();
+                          },
                         ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            size: 50,
-                            color: Colors.white,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Gagal memuat gambar',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
                 ),
               ),
             ),
@@ -1974,6 +2009,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFullScreenError() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.error_outline_rounded, size: 50, color: Colors.white),
+        SizedBox(height: 16),
+        Text('Gagal memuat gambar', style: TextStyle(color: Colors.white)),
+      ],
     );
   }
 }

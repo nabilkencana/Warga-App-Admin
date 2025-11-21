@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/report.dart';
 
 class ReportService {
-  static const String baseUrl = 'http://localhost:3000';
+  static const String baseUrl = 'http://apiwarga.digicodes.my.id';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _getToken();

@@ -5,7 +5,7 @@ import '../models/user.dart';
 
 class UserService {
   static const String baseUrl =
-      'http://localhost:3000'; // Ganti dengan URL API Anda
+      'http://apiwarga.digicodes.my.id'; // Ganti dengan URL API Anda
 
   Future<User> getUserById(int id) async {
     try {

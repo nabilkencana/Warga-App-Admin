@@ -415,7 +415,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Consumer<AdminProvider>(
       builder: (context, admin, child) {
         if (admin.isLoading) {
-          return _buildLoadingState();
+          return _buildLoadingState(); 
         }
 
         if (admin.error != null) {
@@ -424,19 +424,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
         final stats = admin.dashboardStats;
 
-        return SingleChildScrollView(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Stat Cards Grid - termasuk Laporan
-              _buildStatsGrid(stats),
-
-              SizedBox(height: 20),
-
-              // Quick Actions Section
-              _buildQuickActions(),
-            ],
+        return RefreshIndicator(
+          onRefresh: () => admin.loadDashboardData(),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Stat Cards Grid - termasuk Laporan
+                _buildStatsGrid(stats),
+          
+                SizedBox(height: 20),
+          
+                // Quick Actions Section
+                _buildQuickActions(),
+              ],
+            ),
           ),
         );
       },

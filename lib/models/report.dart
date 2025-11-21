@@ -132,4 +132,6 @@ class Report {
         return 'Umum';
     }
   }
+  
 }
+
