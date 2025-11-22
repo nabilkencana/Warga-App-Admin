@@ -450,8 +450,6 @@ class _UsersScreenState extends State<UsersScreen>
                         ),
                       ),
                     ),
-                    SizedBox(height: 8),
-                    _buildActionButtons(user),
                   ],
                 ),
               ],
@@ -462,28 +460,7 @@ class _UsersScreenState extends State<UsersScreen>
     );
   }
 
-  Widget _buildActionButtons(User user) {
-    return Row(
-      children: [
-        // Edit Button
-        IconButton(
-          icon: Icon(Icons.edit, size: 18),
-          color: Colors.blue,
-          onPressed: () => _showEditUserDialog(context, user),
-          padding: EdgeInsets.zero,
-          constraints: BoxConstraints(),
-        ),
-        // Delete Button
-        IconButton(
-          icon: Icon(Icons.delete, size: 18),
-          color: Colors.red,
-          onPressed: () => _showDeleteConfirmation(context, user),
-          padding: EdgeInsets.zero,
-          constraints: BoxConstraints(),
-        ),
-      ],
-    );
-  }
+
 
   // --------------------- ADD USER DIALOG ----------------------
   void _showAddUserDialog(BuildContext context) {
@@ -636,148 +613,6 @@ class _UsersScreenState extends State<UsersScreen>
     ];
   }
 
-  // --------------------- EDIT USER DIALOG ----------------------
-  void _showEditUserDialog(BuildContext context, User user) {
-    _nameController.text = user.namaLengkap;
-    _emailController.text = user.email;
-    _phoneController.text = user.nomorTelepon ?? '';
-    _addressController.text = user.alamat ?? '';
-    _selectedRole = user.role;
-    _passwordController.clear(); // Password optional saat edit
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.edit, color: Color(0xFF1E88E5)),
-                SizedBox(width: 8),
-                Text(
-                  'Edit User',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E88E5),
-                  ),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      labelText: 'Nama Lengkap *',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  TextField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email *',
-                      prefixIcon: Icon(Icons.email),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  SizedBox(height: 16),
-                  TextField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: 'Password Baru (opsional)',
-                      prefixIcon: Icon(Icons.lock),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    obscureText: true,
-                  ),
-                  SizedBox(height: 16),
-                  TextField(
-                    controller: _phoneController,
-                    decoration: InputDecoration(
-                      labelText: 'Nomor Telepon',
-                      prefixIcon: Icon(Icons.phone),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-                  SizedBox(height: 16),
-                  TextField(
-                    controller: _addressController,
-                    decoration: InputDecoration(
-                      labelText: 'Alamat',
-                      prefixIcon: Icon(Icons.location_on),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    maxLines: 2,
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedRole,
-                        icon: Icon(
-                          Icons.arrow_drop_down,
-                          color: Color(0xFF1E88E5),
-                        ),
-                        isExpanded: true,
-                        items: _buildRoleDropdownItems(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _selectedRole = newValue!;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(foregroundColor: Colors.grey[600]),
-                child: Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: _isEditFormValid()
-                    ? () => _updateUser(context, user)
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF1E88E5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _isLoading ? _buildLoadingButton() : Text('Update'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 
   // --------------------- CRUD OPERATIONS ----------------------
   Future<void> _addNewUser(BuildContext context) async {
@@ -860,34 +695,6 @@ class _UsersScreenState extends State<UsersScreen>
     }
   }
 
-  void _showDeleteConfirmation(BuildContext context, User user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Hapus User'),
-          ],
-        ),
-        content: Text(
-          'Apakah Anda yakin ingin menghapus user "${user.namaLengkap}"? Tindakan ini tidak dapat dibatalkan.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () => _deleteUser(context, user),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Hapus'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _deleteUser(BuildContext context, User user) async {
     try {

@@ -1,4 +1,4 @@
-// screens/admin_dashboard_screen.dart
+// screens/admin_dashboard_screen.dart - PERBAIKAN OVERFLOW + FITUR NOTIFIKASI
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/admin_provider.dart';
@@ -14,13 +14,21 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _selectedTab = 0;
+  late AdminProvider _adminProvider;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AdminProvider>(context, listen: false).loadDashboardData();
+      _adminProvider = Provider.of<AdminProvider>(context, listen: false);
+      _adminProvider.loadDashboardData();
     });
+  }
+
+  @override
+  void dispose() {
+    _adminProvider.stopAutoRefresh();
+    super.dispose();
   }
 
   @override
@@ -34,7 +42,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             SizedBox(height: 16),
             _buildTabMenu(),
             SizedBox(height: 16),
-            Expanded(child: _buildContent()),
+            Expanded(
+              // PASTIKAN INI ADA - Ini yang memperbaiki overflow
+              child: _buildContent(),
+            ),
           ],
         ),
       ),
@@ -43,93 +54,165 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // --------------------- HEADER ----------------------
   Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1E88E5), Color(0xFF1976D2)],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Consumer<AdminProvider>(
+      builder: (context, admin, child) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ), // Reduced vertical padding
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1E88E5), Color(0xFF1976D2)],
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, // IMPORTANT: Prevent overflow
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Image.asset(
-                      'assets/Vector.png',
-                      width: 32,
-                      color: Colors.white,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(6), // Reduced padding
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Image.asset(
+                          'assets/Vector.png',
+                          width: 28, // Reduced size
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 8), // Reduced spacing
+                      Text(
+                        "WARGA KITA",
+                        style: TextStyle(
+                          fontSize: 16, // Reduced font size
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(width: 12),
-                  Text(
-                    "WARGA KITA",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
+                  Spacer(),
+                  _buildNotificationButton(),
                 ],
               ),
-              Spacer(),
-              // Notifikasi Button dengan Functionality
-              _buildNotificationButton(),
+
+              SizedBox(height: 16), // Reduced spacing
+
+              Text(
+                "Hai Admin! 👋",
+                style: TextStyle(
+                  fontSize: 20, // Reduced font size
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              SizedBox(height: 6), // Reduced spacing
+
+              Text(
+                "Mari pantau perkembangan warga hari ini",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ), // Reduced font size
+              ),
+
+              // Tampilkan status auto-refresh di header
+              SizedBox(height: 8),
+              _buildAutoRefreshStatus(admin),
             ],
           ),
+        );
+      },
+    );
+  }
 
-          SizedBox(height: 24),
-
-          Text(
-            "Hai Admin! 👋",
-            style: TextStyle(
-              fontSize: 24,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+  // Widget untuk menampilkan status auto-refresh
+  Widget _buildAutoRefreshStatus(AdminProvider admin) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 6,
+            vertical: 3,
+          ), // Reduced padding
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                admin.isAutoRefreshEnabled ? Icons.autorenew : Icons.pause,
+                size: 10, // Reduced size
+                color: Colors.white70,
+              ),
+              SizedBox(width: 3), // Reduced spacing
+              Text(
+                admin.isAutoRefreshEnabled
+                    ? "Auto-refresh ON"
+                    : "Auto-refresh OFF",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 9, // Reduced font size
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(width: 6), // Reduced spacing
+        if (admin.isAutoRefreshEnabled)
+          Expanded(
+            // Added Expanded to prevent text overflow
+            child: Text(
+              "Update: ${_formatTime(admin.lastUpdate)}",
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 9, // Reduced font size
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-
-          SizedBox(height: 8),
-
-          Text(
-            "Mari pantau perkembangan warga hari ini",
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-        ],
-      ),
+      ],
     );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
   // --------------------- NOTIFICATION BUTTON ----------------------
   Widget _buildNotificationButton() {
     return Consumer<AdminProvider>(
       builder: (context, admin, child) {
-        // Gunakan unreadNotifications dari AdminProvider
         final unreadCount = admin.unreadNotifications;
 
         return Stack(
           children: [
             Container(
-              padding: EdgeInsets.all(10),
+              padding: EdgeInsets.all(8), // Reduced padding
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
                 shape: BoxShape.circle,
@@ -141,7 +224,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: Icon(
                   Icons.notifications_none,
                   color: Colors.white,
-                  size: 22,
+                  size: 20, // Reduced size
                 ),
                 padding: EdgeInsets.zero,
                 constraints: BoxConstraints(),
@@ -149,22 +232,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             if (unreadCount > 0)
               Positioned(
-                top: 8,
-                right: 8,
+                top: 6, // Adjusted position
+                right: 6, // Adjusted position
                 child: Container(
-                  padding: EdgeInsets.all(2),
+                  padding: EdgeInsets.all(1), // Reduced padding
                   decoration: BoxDecoration(
                     color: Colors.red,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: Colors.white, width: 1.5),
                   ),
-                  constraints: BoxConstraints(minWidth: 16, minHeight: 16),
+                  constraints: BoxConstraints(
+                    minWidth: 14,
+                    minHeight: 14,
+                  ), // Reduced size
                   child: Text(
                     unreadCount > 9 ? '9+' : unreadCount.toString(),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 8,
+                      fontSize: 7, // Reduced font size
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -177,8 +263,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _showNotifications(BuildContext context, AdminProvider admin) {
-    // Gunakan notifications dari AdminProvider
     final notifications = admin.notifications;
+
+    // MARK ALL NOTIFICATIONS AS READ WHEN OPENED
+    admin.markAllNotificationsAsRead();
 
     showModalBottomSheet(
       context: context,
@@ -187,16 +275,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
       builder: (context) {
         return Container(
-          padding: EdgeInsets.all(20),
-          height: 400,
+          padding: EdgeInsets.all(16), // Reduced padding
+          height: MediaQuery.of(context).size.height * 0.7, // Reduced height
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
                   Text(
                     "Notifikasi",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ), // Reduced font size
                   ),
                   Spacer(),
                   if (admin.unreadNotifications > 0)
@@ -209,18 +301,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         "Tandai semua dibaca",
                         style: TextStyle(
                           color: Color(0xFF1E88E5),
-                          fontSize: 12,
+                          fontSize: 11, // Reduced font size
                         ),
                       ),
                     ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close, size: 20),
+                    icon: Icon(Icons.close, size: 18), // Reduced size
                     padding: EdgeInsets.zero,
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 12), // Reduced spacing
               Expanded(
                 child: notifications.isEmpty
                     ? Center(
@@ -230,12 +322,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Icon(
                               Icons.notifications_off_outlined,
                               color: Colors.grey.shade400,
-                              size: 48,
+                              size: 40, // Reduced size
                             ),
-                            SizedBox(height: 12),
+                            SizedBox(height: 8), // Reduced spacing
                             Text(
                               "Tidak ada notifikasi",
-                              style: TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 12,
+                              ), // Reduced font size
                             ),
                           ],
                         ),
@@ -260,11 +355,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     AdminProvider admin,
   ) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: 8), // Reduced margin
+      padding: EdgeInsets.all(12), // Reduced padding
       decoration: BoxDecoration(
         color: notification['isRead'] ? Colors.grey.shade50 : Color(0xFFE3F2FD),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: notification['isRead']
               ? Colors.grey.shade200
@@ -278,9 +373,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             color: notification['isRead']
                 ? Colors.grey.shade400
                 : Color(0xFF1E88E5),
-            size: 20,
+            size: 18, // Reduced size
           ),
-          SizedBox(width: 12),
+          SizedBox(width: 10), // Reduced spacing
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,25 +384,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   notification['title'],
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
+                    fontSize: 13, // Reduced font size
                     color: notification['isRead']
                         ? Colors.grey.shade600
                         : Colors.black87,
                   ),
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 3), // Reduced spacing
                 Text(
                   notification['message'],
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11, // Reduced font size
                     color: notification['isRead']
                         ? Colors.grey.shade500
                         : Colors.black54,
                   ),
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 3), // Reduced spacing
                 Text(
                   notification['time'],
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Colors.grey.shade400,
+                  ), // Reduced font size
                 ),
               ],
             ),
@@ -317,7 +416,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               onPressed: () => admin.markNotificationAsRead(notification['id']),
               icon: Icon(
                 Icons.check_circle_outline,
-                size: 18,
+                size: 16, // Reduced size
                 color: Color(0xFF1E88E5),
               ),
               padding: EdgeInsets.zero,
@@ -353,14 +452,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     ];
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20),
-      height: 48,
+      padding: EdgeInsets.symmetric(horizontal: 16), // Reduced padding
+      height: 40, // Reduced height
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: tabLabels.length,
         itemBuilder: (context, index) {
           return Padding(
-            padding: EdgeInsets.only(right: 12),
+            padding: EdgeInsets.only(right: 8), // Reduced spacing
             child: _tab(tabLabels[index], index),
           );
         },
@@ -374,10 +473,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       onTap: () => setState(() => _selectedTab = index),
       child: AnimatedContainer(
         duration: Duration(milliseconds: 300),
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 8,
+        ), // Reduced padding
         decoration: BoxDecoration(
           color: selected ? Color(0xFF1E88E5) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? Color(0xFF1E88E5) : Colors.grey.shade300,
             width: selected ? 0 : 1,
@@ -386,14 +488,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ? [
                   BoxShadow(
                     color: Color(0xFF1E88E5).withOpacity(0.3),
-                    blurRadius: 8,
+                    blurRadius: 6,
                     offset: Offset(0, 2),
                   ),
                 ]
               : [
                   BoxShadow(
                     color: Colors.black12,
-                    blurRadius: 4,
+                    blurRadius: 3,
                     offset: Offset(0, 1),
                   ),
                 ],
@@ -403,7 +505,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           style: TextStyle(
             color: selected ? Colors.white : Colors.black54,
             fontWeight: FontWeight.w600,
-            fontSize: 13,
+            fontSize: 12, // Reduced font size
           ),
         ),
       ),
@@ -415,7 +517,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Consumer<AdminProvider>(
       builder: (context, admin, child) {
         if (admin.isLoading) {
-          return _buildLoadingState(); 
+          return _buildLoadingState();
         }
 
         if (admin.error != null) {
@@ -425,17 +527,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final stats = admin.dashboardStats;
 
         return RefreshIndicator(
-          onRefresh: () => admin.loadDashboardData(),
+          onRefresh: () => admin.refreshData(),
+          color: Color(0xFF1E88E5),
+          backgroundColor: Colors.white,
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(16),
+            physics: AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(12), // Reduced padding
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, // IMPORTANT: Prevent overflow
               children: [
-                // Stat Cards Grid - termasuk Laporan
-                _buildStatsGrid(stats),
-          
-                SizedBox(height: 20),
-          
+                // Tampilkan info last updated
+                _buildLastUpdatedInfo(admin),
+                SizedBox(height: 12),
+
+                // Stat Cards Grid
+                _buildStatsGrid(stats, admin),
+
+                SizedBox(height: 16),
+
                 // Quick Actions Section
                 _buildQuickActions(),
               ],
@@ -446,16 +556,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  // Widget untuk menampilkan info last updated
+  Widget _buildLastUpdatedInfo(AdminProvider admin) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ), // Reduced padding
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 12, // Reduced size
+                color: Colors.blue.shade600,
+              ),
+              SizedBox(width: 5), // Reduced spacing
+              Text(
+                "Data diperbarui otomatis",
+                style: TextStyle(
+                  fontSize: 11, // Reduced font size
+                  color: Colors.blue.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            "Update: ${_formatTimeWithSeconds(admin.lastUpdate)}",
+            style: TextStyle(
+              fontSize: 10, // Reduced font size
+              color: Colors.blue.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeWithSeconds(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:${dateTime.second.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildLoadingState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(color: Color(0xFF1E88E5), strokeWidth: 2),
-          SizedBox(height: 16),
+          SizedBox(height: 12), // Reduced spacing
           Text(
             "Memuat data...",
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 12,
+            ), // Reduced font size
           ),
         ],
       ),
@@ -467,23 +630,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, color: Colors.red, size: 48),
-          SizedBox(height: 16),
+          Icon(
+            Icons.error_outline,
+            color: Colors.red,
+            size: 40,
+          ), // Reduced size
+          SizedBox(height: 12), // Reduced spacing
           Text(
             "Terjadi kesalahan",
             style: TextStyle(
               color: Colors.grey.shade700,
-              fontSize: 16,
+              fontSize: 14, // Reduced font size
               fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 8),
-          Text(
-            error,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+          SizedBox(height: 6), // Reduced spacing
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ), // Reduced font size
+            ),
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 12), // Reduced spacing
           ElevatedButton(
             onPressed: () {
               Provider.of<AdminProvider>(
@@ -494,18 +667,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFF1E88E5),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
+              padding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ), // Reduced padding
             ),
-            child: Text("Coba Lagi"),
+            child: Text(
+              "Coba Lagi",
+              style: TextStyle(fontSize: 12),
+            ), // Reduced font size
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsGrid(dynamic stats) {
-    List<Map<String, dynamic>> cardData = _getFilteredData(stats);
+  Widget _buildStatsGrid(dynamic stats, AdminProvider admin) {
+    List<Map<String, dynamic>> cardData = _getFilteredData(stats, admin);
 
     if (cardData.isEmpty) {
       return _buildEmptyState();
@@ -516,9 +696,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       shrinkWrap: true,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.85,
+        crossAxisSpacing: 12, // Reduced spacing
+        mainAxisSpacing: 12, // Reduced spacing
+        childAspectRatio: 0.8, // Adjusted aspect ratio
       ),
       itemCount: cardData.length,
       itemBuilder: (context, index) {
@@ -531,6 +711,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           subtitle: data['subtitle'],
           onTap: data['onTap'],
           badgeCount: data['badgeCount'],
+          admin: admin,
+          cardType: data['cardType'],
         );
       },
     );
@@ -539,16 +721,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min, // IMPORTANT: Prevent overflow
       children: [
-        Text(
-          "Aksi Cepat",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Aksi Cepat",
+              style: TextStyle(
+                fontSize: 16, // Reduced font size
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            Consumer<AdminProvider>(
+              builder: (context, admin, child) {
+                return IconButton(
+                  onPressed: () => admin.forceRefresh(),
+                  icon: Icon(Icons.refresh, size: 18), // Reduced size
+                  tooltip: "Refresh Sekarang",
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                );
+              },
+            ),
+          ],
         ),
-        SizedBox(height: 12),
+        SizedBox(height: 10), // Reduced spacing
         Row(
           children: [
             Expanded(
@@ -559,7 +758,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 onTap: () => _showCreateAnnouncementDialog(context),
               ),
             ),
-            SizedBox(width: 12),
+            SizedBox(width: 10), // Reduced spacing
             Expanded(
               child: _quickActionButton(
                 icon: Icons.analytics_outlined,
@@ -568,7 +767,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 onTap: () => Navigator.pushNamed(context, "/reports"),
               ),
             ),
-            SizedBox(width: 12),
+            SizedBox(width: 10), // Reduced spacing
             Expanded(
               child: _quickActionButton(
                 icon: Icons.settings_outlined,
@@ -593,7 +792,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Buat Pengumuman Baru"),
+          title: Text(
+            "Buat Pengumuman Baru",
+            style: TextStyle(fontSize: 16),
+          ), // Reduced font size
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -604,20 +806,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     labelText: "Judul Pengumuman",
                     border: OutlineInputBorder(),
                     hintText: "Masukkan judul pengumuman",
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ), // Reduced padding
                   ),
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 12), // Reduced spacing
                 TextField(
                   controller: messageController,
-                  maxLines: 4,
+                  maxLines: 3, // Reduced max lines
                   decoration: InputDecoration(
                     labelText: "Isi Pengumuman",
                     border: OutlineInputBorder(),
                     hintText: "Masukkan isi pengumuman",
                     alignLabelWithHint: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ), // Reduced padding
                   ),
                 ),
-                SizedBox(height: 16),
+                SizedBox(height: 12), // Reduced spacing
                 Row(
                   children: [
                     Checkbox(
@@ -628,8 +838,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         });
                       },
                     ),
-                    Text("Tandai sebagai penting"),
-                    Icon(Icons.priority_high, color: Colors.red, size: 16),
+                    Text(
+                      "Tandai sebagai penting",
+                      style: TextStyle(fontSize: 12),
+                    ), // Reduced font size
+                    Icon(
+                      Icons.priority_high,
+                      color: Colors.red,
+                      size: 14,
+                    ), // Reduced size
                   ],
                 ),
               ],
@@ -638,7 +855,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Batal"),
+              child: Text(
+                "Batal",
+                style: TextStyle(fontSize: 12),
+              ), // Reduced font size
             ),
             ElevatedButton(
               onPressed: () {
@@ -652,8 +872,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF1E88E5),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ), // Reduced padding
               ),
-              child: Text("Buat Pengumuman"),
+              child: Text(
+                "Buat Pengumuman",
+                style: TextStyle(fontSize: 12),
+              ), // Reduced font size
             ),
           ],
         );
@@ -670,24 +897,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     if (title.isEmpty || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Judul dan isi pengumuman harus diisi"),
+          content: Text(
+            "Judul dan isi pengumuman harus diisi",
+            style: TextStyle(fontSize: 12),
+          ), // Reduced font size
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    // Simulasi pembuatan pengumuman
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           "Pengumuman '${title.length > 20 ? title.substring(0, 20) + '...' : title}' berhasil dibuat",
+          style: TextStyle(fontSize: 12), // Reduced font size
         ),
         backgroundColor: Colors.green,
       ),
     );
 
-    // Refresh data dashboard
     Provider.of<AdminProvider>(context, listen: false).refreshData();
   }
 
@@ -695,6 +924,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _showSettingsBottomSheet(BuildContext context) {
     bool _notificationsEnabled = true;
     bool _darkMode = false;
+    bool _autoRefreshEnabled = _adminProvider.isAutoRefreshEnabled;
     String _language = 'Indonesia';
 
     showModalBottomSheet(
@@ -707,28 +937,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             return Container(
-              padding: EdgeInsets.all(20),
-              height: MediaQuery.of(context).size.height * 0.85,
+              padding: EdgeInsets.all(16), // Reduced padding
+              height:
+                  MediaQuery.of(context).size.height * 0.8, // Reduced height
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
                       Text(
                         "Pengaturan",
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 18, // Reduced font size
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Spacer(),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: Icon(Icons.close),
+                        icon: Icon(Icons.close, size: 20), // Reduced size
                       ),
                     ],
                   ),
-                  SizedBox(height: 20),
+                  SizedBox(height: 16),
+
+                  // AUTO REFRESH SETTINGS
+                  _settingsSection(
+                    title: "Auto Refresh",
+                    icon: Icons.autorenew_outlined,
+                    children: [
+                      _settingsSwitch(
+                        value: _autoRefreshEnabled,
+                        label: "Refresh Otomatis",
+                        subtitle: "Update data setiap 30 detik",
+                        onChanged: (value) {
+                          setState(() {
+                            _autoRefreshEnabled = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 16),
 
                   // Notifikasi Settings
                   _settingsSection(
@@ -747,7 +999,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
 
-                  SizedBox(height: 20),
+                  SizedBox(height: 16),
 
                   // Tampilan Settings
                   _settingsSection(
@@ -766,7 +1018,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
 
-                  SizedBox(height: 20),
+                  SizedBox(height: 16),
 
                   // Bahasa Settings
                   _settingsSection(
@@ -786,7 +1038,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
 
-                  SizedBox(height: 20),
+                  SizedBox(height: 16),
 
                   // Account Settings
                   _settingsSection(
@@ -799,7 +1051,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text("Membuka pengaturan keamanan..."),
+                              content: Text(
+                                "Membuka pengaturan keamanan...",
+                                style: TextStyle(fontSize: 12),
+                              ), // Reduced font size
                             ),
                           );
                         },
@@ -810,7 +1065,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text("Membuka pengaturan privasi..."),
+                              content: Text(
+                                "Membuka pengaturan privasi...",
+                                style: TextStyle(fontSize: 12),
+                              ), // Reduced font size
                             ),
                           );
                         },
@@ -821,7 +1079,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text("Membuka halaman bantuan..."),
+                              content: Text(
+                                "Membuka halaman bantuan...",
+                                style: TextStyle(fontSize: 12),
+                              ), // Reduced font size
                             ),
                           );
                         },
@@ -841,20 +1102,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           _notificationsEnabled,
                           _darkMode,
                           _language,
+                          _autoRefreshEnabled,
                         );
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF1E88E5),
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: 12,
+                        ), // Reduced padding
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                       child: Text(
                         "Simpan Pengaturan",
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14, // Reduced font size
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -876,18 +1140,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
-            Icon(icon, color: Color(0xFF1E88E5), size: 20),
-            SizedBox(width: 8),
+            Icon(icon, color: Color(0xFF1E88E5), size: 18), // Reduced size
+            SizedBox(width: 6), // Reduced spacing
             Text(
               title,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ), // Reduced font size
             ),
           ],
         ),
-        SizedBox(height: 12),
+        SizedBox(height: 10), // Reduced spacing
         ...children,
       ],
     );
@@ -896,15 +1164,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _settingsSwitch({
     required bool value,
     required String label,
+    String subtitle = '',
     required Function(bool) onChanged,
   }) {
-    return Row(
+    return Column(
       children: [
-        Expanded(child: Text(label)),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: Color(0xFF1E88E5),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ), // Reduced font size
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11, // Reduced font size
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: Color(0xFF1E88E5),
+            ),
+          ],
         ),
       ],
     );
@@ -921,22 +1215,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade600,
+          ), // Reduced font size
         ),
-        SizedBox(height: 8),
+        SizedBox(height: 6), // Reduced spacing
         Container(
           width: double.infinity,
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 4,
+          ), // Reduced padding
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
           ),
           child: DropdownButton<String>(
             value: value,
             isExpanded: true,
             underline: SizedBox(),
             items: items.map((String item) {
-              return DropdownMenuItem<String>(value: item, child: Text(item));
+              return DropdownMenuItem<String>(
+                value: item,
+                child: Text(item, style: TextStyle(fontSize: 13)),
+              ); // Reduced font size
             }).toList(),
             onChanged: onChanged,
           ),
@@ -951,14 +1254,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required VoidCallback onTap,
   }) {
     return Container(
-      height: 44, // Fixed height untuk konsistensi
+      height: 40, // Reduced height
       child: ListTile(
-        leading: Icon(icon, color: Colors.grey.shade600, size: 20),
-        title: Text(label, style: TextStyle(fontSize: 14)),
-        trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+        leading: Icon(
+          icon,
+          color: Colors.grey.shade600,
+          size: 18,
+        ), // Reduced size
+        title: Text(label, style: TextStyle(fontSize: 13)), // Reduced font size
+        trailing: Icon(
+          Icons.chevron_right,
+          color: Colors.grey.shade400,
+          size: 18,
+        ), // Reduced size
         onTap: onTap,
         contentPadding: EdgeInsets.zero,
-        dense: true, // Buat lebih compact
+        dense: true,
       ),
     );
   }
@@ -968,18 +1279,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     bool notifications,
     bool darkMode,
     String language,
+    bool autoRefresh,
   ) {
+    _adminProvider.setAutoRefresh(autoRefresh);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("Pengaturan berhasil disimpan"),
+        content: Text(
+          "Pengaturan berhasil disimpan",
+          style: TextStyle(fontSize: 12),
+        ), // Reduced font size
         backgroundColor: Colors.green,
       ),
     );
-
-    print("Settings saved:");
-    print("- Notifications: $notifications");
-    print("- Dark Mode: $darkMode");
-    print("- Language: $language");
   }
 
   Widget _quickActionButton({
@@ -991,22 +1303,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(12), // Reduced padding
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
-            SizedBox(height: 8),
+            Icon(icon, color: color, size: 20), // Reduced size
+            SizedBox(height: 6), // Reduced spacing
             Text(
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: color,
-                fontSize: 12,
+                fontSize: 11, // Reduced font size
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1018,24 +1330,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildEmptyState() {
     return Container(
-      padding: EdgeInsets.all(40),
+      padding: EdgeInsets.all(30), // Reduced padding
       child: Column(
         children: [
-          Icon(Icons.inbox_outlined, color: Colors.grey.shade400, size: 64),
-          SizedBox(height: 16),
+          Icon(
+            Icons.inbox_outlined,
+            color: Colors.grey.shade400,
+            size: 50,
+          ), // Reduced size
+          SizedBox(height: 12), // Reduced spacing
           Text(
             "Tidak ada data",
             style: TextStyle(
               color: Colors.grey.shade600,
-              fontSize: 16,
+              fontSize: 14, // Reduced font size
               fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 8),
+          SizedBox(height: 6), // Reduced spacing
           Text(
             "Semua data sudah ditangani dengan baik",
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 12,
+            ), // Reduced font size
           ),
         ],
       ),
@@ -1043,7 +1362,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // --------------------- FILTER DATA BERDASARKAN TAB ----------------------
-  List<Map<String, dynamic>> _getFilteredData(dynamic stats) {
+  List<Map<String, dynamic>> _getFilteredData(
+    dynamic stats,
+    AdminProvider admin,
+  ) {
     final baseData = [
       {
         'color': Color(0xFFE3F2FD),
@@ -1053,6 +1375,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'subtitle': "Warga",
         'badgeCount': 0,
         'onTap': () => Navigator.pushNamed(context, "/users"),
+        'cardType': 'users',
       },
       {
         'color': Color(0xFFE8F5E9),
@@ -1062,6 +1385,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'subtitle': "Postingan",
         'badgeCount': 0,
         'onTap': () => Navigator.pushNamed(context, "/announcements"),
+        'cardType': 'announcements',
       },
       {
         'color': Color(0xFFFFEBEE),
@@ -1069,8 +1393,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'title': "Darurat",
         'count': stats?.activeEmergencies ?? 0,
         'subtitle': "Aktif",
-        'badgeCount': stats?.activeEmergencies ?? 0,
-        'onTap': () => Navigator.pushNamed(context, "/emergencies"),
+        'badgeCount': admin.getUnreadEmergencyCount(),
+        'onTap': () {
+          admin.markAllEmergenciesAsRead();
+          Navigator.pushNamed(context, "/emergencies");
+        },
+        'cardType': 'emergencies',
       },
       {
         'color': Color(0xFFFFF8E1),
@@ -1078,8 +1406,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'title': "Laporan",
         'count': _getFilteredReportCount(stats),
         'subtitle': _getReportSubtitle(),
-        'badgeCount': _getReportBadgeCount(stats),
-        'onTap': () => Navigator.pushNamed(context, "/reports"),
+        'badgeCount': admin.getUnreadReportCount(),
+        'onTap': () {
+          admin.markAllReportsAsRead();
+          Navigator.pushNamed(context, "/reports");
+        },
+        'cardType': 'reports',
       },
     ];
 
@@ -1088,13 +1420,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return baseData;
 
       case 1: // Prioritas
-        // Urutkan berdasarkan count tertinggi dan beri badge
         List<Map<String, dynamic>> sortedData = List.from(baseData);
         sortedData.sort((a, b) => b['count'].compareTo(a['count']));
         return sortedData;
 
       case 2: // Butuh Tindakan
-        // Filter data yang membutuhkan perhatian (badgeCount > 0)
         return baseData.where((item) => item['badgeCount'] > 0).toList();
 
       default:
@@ -1133,21 +1463,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  int _getReportBadgeCount(dynamic stats) {
-    final totalReports = stats?.totalReports ?? 0;
-
-    switch (_selectedTab) {
-      case 0:
-        return 0;
-      case 1:
-        return (totalReports * 0.2).round();
-      case 2:
-        return (totalReports * 0.3).round();
-      default:
-        return 0;
-    }
-  }
-
   // --------------------- CARD ITEM ----------------------
   Widget _statCard({
     required Color color,
@@ -1157,17 +1472,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required String subtitle,
     required VoidCallback onTap,
     required int badgeCount,
+    required AdminProvider admin,
+    required String cardType,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        // MARK AS READ WHEN CARD IS TAPPED
+        if (cardType == 'emergencies' && badgeCount > 0) {
+          admin.markAllEmergenciesAsRead();
+        } else if (cardType == 'reports' && badgeCount > 0) {
+          admin.markAllReportsAsRead();
+        }
+        onTap();
+      },
       child: Container(
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: Colors.black12,
-              blurRadius: 6,
+              blurRadius: 4,
               offset: Offset(0, 2),
             ),
           ],
@@ -1175,17 +1500,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         child: Stack(
           children: [
             Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(12), // Reduced padding
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: EdgeInsets.all(8),
+                    padding: EdgeInsets.all(6), // Reduced padding
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(icon, size: 28, color: Colors.black54),
+                    child: Icon(
+                      icon,
+                      size: 24,
+                      color: Colors.black54,
+                    ), // Reduced size
                   ),
 
                   Spacer(),
@@ -1194,17 +1523,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     title,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      fontSize: 13, // Reduced font size
                       color: Colors.black87,
                     ),
                   ),
 
-                  SizedBox(height: 4),
+                  SizedBox(height: 3), // Reduced spacing
 
                   Text(
                     "$count $subtitle",
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11, // Reduced font size
                       color: Colors.black54,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1216,19 +1545,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             // Badge untuk notifikasi
             if (badgeCount > 0)
               Positioned(
-                top: 12,
-                right: 12,
+                top: 8, // Adjusted position
+                right: 8, // Adjusted position
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ), // Reduced padding
                   decoration: BoxDecoration(
                     color: Colors.red,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     badgeCount > 9 ? '9+' : badgeCount.toString(),
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 10,
+                      fontSize: 9, // Reduced font size
                       fontWeight: FontWeight.bold,
                     ),
                   ),

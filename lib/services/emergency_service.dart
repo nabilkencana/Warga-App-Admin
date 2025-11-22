@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/emergency.dart';
 
 class EmergencyService {
-  static const String baseUrl = 'http://apiwarga.digicodes.my.id';
+  static const String baseUrl = 'http://wargakita.canadev.my.id';
 
   Future<Map<String, String>> _getHeaders() async {
     final token = await _getToken();

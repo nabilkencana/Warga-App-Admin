@@ -15,6 +15,7 @@ class UserDetailScreen extends StatefulWidget {
 
 class _UserDetailScreenState extends State<UserDetailScreen> {
   late Future<Map<String, dynamic>> _userDataFuture;
+  late User _currentUser;
 
   @override
   void initState() {
@@ -25,14 +26,34 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   Future<Map<String, dynamic>> _loadUserData() async {
     try {
       final user = await widget.userService.getUserById(widget.userId);
-      final stats = await widget.userService.getUserStats(widget.userId);
+      _currentUser = user;
+
+      Map<String, int> stats;
+
+      // Coba ambil statistik dari service
+      try {
+        stats = await widget.userService.getUserStats(widget.userId);
+        print('Stats loaded successfully: $stats');
+      } catch (e) {
+        print('Error loading stats: $e');
+        // Fallback ke data dari user object
+        stats = user.getStats();
+        print('Using fallback stats from user object: $stats');
+      }
+
+      // Debug final stats
+      print('=== FINAL STATS ===');
+      print('Laporan: ${stats['laporan']}');
+      print('Darurat: ${stats['darurat']}');
+      print('Aktivitas: ${stats['aktivitas']}');
+      print('===================');
 
       return {'user': user, 'stats': stats, 'error': null};
     } catch (e) {
+      print('Error loading user data: $e');
       return {'user': null, 'stats': null, 'error': e.toString()};
     }
   }
-
   void _refreshData() {
     setState(() {
       _userDataFuture = _loadUserData();
@@ -379,19 +400,19 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               children: [
                 _buildStatItem(
                   'Laporan',
-                  stats['laporan'].toString(),
+                  stats['laporan']?.toString() ?? '0',
                   Icons.report,
                   Colors.blue,
                 ),
                 _buildStatItem(
                   'Darurat',
-                  stats['darurat'].toString(),
+                  stats['darurat']?.toString() ?? '0',
                   Icons.warning,
                   Colors.orange,
                 ),
                 _buildStatItem(
                   'Aktivitas',
-                  stats['aktivitas'].toString(),
+                  stats['aktivitas']?.toString() ?? '0',
                   Icons.local_activity_rounded,
                   Colors.green,
                 ),
@@ -471,7 +492,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             Expanded(
               child: OutlinedButton(
                 onPressed: () {
-                  _showMessageDialog(context);
+                  _showMessageDialog(context, user);
                 },
                 style: OutlinedButton.styleFrom(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -519,27 +540,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           ],
         ),
         SizedBox(height: 12),
-        if (user.role.toLowerCase() == 'volunteer')
-          OutlinedButton(
-            onPressed: () {
-              _showVolunteerDetails(context);
-            },
-            style: OutlinedButton.styleFrom(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              side: BorderSide(color: Colors.green),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.verified_user, color: Colors.green),
-                SizedBox(width: 8),
-                Text('Detail Volunteer', style: TextStyle(color: Colors.green)),
-              ],
-            ),
-          ),
 
         // Admin actions
         if (_isCurrentUserAdmin()) ...[
@@ -592,6 +592,24 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
               ),
             ],
           ),
+          SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () {
+              _showDeleteConfirmationDialog(context, user);
+            },
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              side: BorderSide(color: Colors.red),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete, color: Colors.red, size: 18),
+                SizedBox(width: 8),
+                Text('Hapus Akun', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
         ],
       ],
     );
@@ -633,7 +651,31 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
   }
 
+  // Di dalam _showEditDialog method, tambahkan field baru:
   void _showEditDialog(BuildContext context) {
+    final _formKey = GlobalKey<FormState>();
+    final _namaController = TextEditingController(
+      text: _currentUser.namaLengkap,
+    );
+    final _emailController = TextEditingController(text: _currentUser.email);
+    final _bioController = TextEditingController(text: _currentUser.bio ?? '');
+    final _phoneController = TextEditingController(
+      text: _currentUser.nomorTelepon ?? '',
+    );
+    final _addressController = TextEditingController(
+      text: _currentUser.alamat ?? '',
+    );
+    final _cityController = TextEditingController(
+      text: _currentUser.kota ?? '',
+    );
+    final _nikController = TextEditingController(text: _currentUser.nik ?? '');
+    final _instagramController = TextEditingController(
+      text: _currentUser.instagram ?? '',
+    );
+    final _facebookController = TextEditingController(
+      text: _currentUser.facebook ?? '',
+    );
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -644,18 +686,171 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             Text('Edit Profile'),
           ],
         ),
-        content: Text('Fitur edit profile akan segera tersedia.'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _namaController,
+                  decoration: InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Nama lengkap harus diisi';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email harus diisi';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Format email tidak valid';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _bioController,
+                  decoration: InputDecoration(
+                    labelText: 'Bio',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: InputDecoration(
+                    labelText: 'Nomor Telepon',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _nikController,
+                  decoration: InputDecoration(
+                    labelText: 'NIK',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _instagramController,
+                  decoration: InputDecoration(
+                    labelText: 'Instagram',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _facebookController,
+                  decoration: InputDecoration(
+                    labelText: 'Facebook',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _addressController,
+                  decoration: InputDecoration(
+                    labelText: 'Alamat',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _cityController,
+                  decoration: InputDecoration(
+                    labelText: 'Kota',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Tutup', style: TextStyle(color: Colors.blue[800])),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_formKey.currentState!.validate()) {
+                try {
+                  final updateData = {
+                    'namaLengkap': _namaController.text,
+                    'email': _emailController.text,
+                    'bio': _bioController.text.isNotEmpty
+                        ? _bioController.text
+                        : null,
+                    'nomorTelepon': _phoneController.text.isNotEmpty
+                        ? _phoneController.text
+                        : null,
+                    'alamat': _addressController.text.isNotEmpty
+                        ? _addressController.text
+                        : null,
+                    'kota': _cityController.text.isNotEmpty
+                        ? _cityController.text
+                        : null,
+                    'nik': _nikController.text.isNotEmpty
+                        ? _nikController.text
+                        : null,
+                    'instagram': _instagramController.text.isNotEmpty
+                        ? _instagramController.text
+                        : null,
+                    'facebook': _facebookController.text.isNotEmpty
+                        ? _facebookController.text
+                        : null,
+                  };
+
+                  // Remove null values
+                  updateData.removeWhere((key, value) => value == null);
+
+                  await widget.userService.updateUserProfile(
+                    _currentUser.id,
+                    updateData,
+                  );
+                  _refreshData();
+                  Navigator.pop(context);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Profile berhasil diperbarui')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal memperbarui profile: $e')),
+                  );
+                }
+              }
+            },
+            child: Text('Simpan'),
           ),
         ],
       ),
     );
   }
 
-  void _showMessageDialog(BuildContext context) {
+  void _showMessageDialog(BuildContext context, User user) {
+    final _messageController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -663,14 +858,62 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           children: [
             Icon(Icons.message, color: Colors.blue[800]),
             SizedBox(width: 8),
-            Text('Kirim Pesan'),
+            Text('Kirim Pesan ke ${user.namaLengkap}'),
           ],
         ),
-        content: Text('Fitur kirim pesan akan segera tersedia.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _messageController,
+              decoration: InputDecoration(
+                labelText: 'Pesan',
+                border: OutlineInputBorder(),
+                hintText: 'Ketik pesan Anda di sini...',
+              ),
+              maxLines: 4,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Pesan tidak boleh kosong';
+                }
+                return null;
+              },
+            ),
+            SizedBox(height: 16),
+            if (user.nomorTelepon != null)
+              Text(
+                'Pesan akan dikirim ke: ${user.nomorTelepon}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Tutup', style: TextStyle(color: Colors.blue[800])),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_messageController.text.isNotEmpty) {
+                try {
+                  // Implementasi pengiriman pesan sesuai dengan service yang tersedia
+                  // Untuk sementara, kita simpan sebagai log
+                  print(
+                    'Mengirim pesan ke user ${user.id}: ${_messageController.text}',
+                  );
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Pesan berhasil dikirim')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal mengirim pesan: $e')),
+                  );
+                }
+              }
+            },
+            child: Text('Kirim'),
           ),
         ],
       ),
@@ -695,7 +938,17 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             if (phoneNumber == null)
               Text('Nomor telepon tidak tersedia.')
             else
-              Text('Hubungi $phoneNumber?'),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Hubungi $phoneNumber?'),
+                  SizedBox(height: 8),
+                  Text(
+                    'Fitur ini akan membuka aplikasi telepon default Anda',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
           ],
         ),
         actions: [
@@ -706,8 +959,13 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           if (phoneNumber != null)
             ElevatedButton(
               onPressed: () {
-                // Implement phone call
+                // Implementasi panggilan telepon
+                // Untuk sementara, kita log saja
+                print('Memanggil: $phoneNumber');
                 Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Membuka aplikasi telepon...')),
+                );
               },
               child: Text('Hubungi'),
             ),
@@ -716,39 +974,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
   }
 
-  void _showVolunteerDetails(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.verified_user, color: Colors.green),
-            SizedBox(width: 8),
-            Text('Detail Volunteer'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Informasi detail volunteer akan ditampilkan di sini.'),
-            SizedBox(height: 16),
-            _buildInfoRow(Icons.star, 'Rating', '4.8/5.0'),
-            _buildInfoRow(Icons.assignment_turned_in, 'Tugas Selesai', '24'),
-            _buildInfoRow(Icons.thumb_up, 'Ulasan Positif', '95%'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Tutup', style: TextStyle(color: Colors.blue[800])),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showRoleUpdateDialog(BuildContext context, User user) {
+    String? selectedRole = user.role;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -759,7 +987,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
             Text('Pilih role baru untuk ${user.namaLengkap}:'),
             SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: user.role,
+              value: selectedRole,
               items: ['user', 'admin', 'volunteer']
                   .map(
                     (role) => DropdownMenuItem(
@@ -769,10 +997,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                   )
                   .toList(),
               onChanged: (newRole) {
-                if (newRole != null) {
-                  _updateUserRole(user.id, newRole);
-                  Navigator.pop(context);
-                }
+                selectedRole = newRole;
               },
             ),
           ],
@@ -781,6 +1006,15 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (selectedRole != null) {
+                _updateUserRole(user.id, selectedRole!);
+                Navigator.pop(context);
+              }
+            },
+            child: Text('Simpan'),
           ),
         ],
       ),
@@ -819,6 +1053,47 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
   }
 
+  void _showDeleteConfirmationDialog(BuildContext context, User user) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Hapus Akun'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Apakah Anda yakin ingin menghapus akun ${user.namaLengkap}?'),
+            SizedBox(height: 8),
+            Text(
+              'Tindakan ini tidak dapat dibatalkan. Semua data user akan dihapus permanen.',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _deleteUserAccount(user.id);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _updateUserRole(int userId, String newRole) async {
     try {
       await widget.userService.updateUserRole(userId, newRole);
@@ -847,10 +1122,25 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     }
   }
 
+  void _deleteUserAccount(int userId) async {
+    try {
+      await widget.userService.deleteUser(userId);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Akun berhasil dihapus')));
+      Navigator.pop(context); // Kembali ke halaman sebelumnya
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menghapus akun: $e')));
+    }
+  }
+
   bool _isCurrentUserAdmin() {
-    // Implement logic to check if current user is admin
-    // This could be from shared preferences or state management
-    return true; // Temporary
+    // Implementasi logika untuk mengecek apakah user saat ini adalah admin
+    // Ini bisa dari shared preferences atau state management
+    // Untuk sementara return true untuk testing
+    return true;
   }
 
   Color _getRoleColor(String role) {

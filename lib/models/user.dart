@@ -111,4 +111,69 @@ class User {
       'isOnline': isOnline,
     };
   }
+
+  // Method untuk mendapatkan statistik dalam format yang konsisten
+  Map<String, int> getStats() {
+    return {
+      'laporan': reportCount ?? 0,
+      'darurat': emergencyCount ?? 0,
+      'aktivitas': activityCount ?? 0,
+    };
+  }
+
+  // Copy with method untuk update data
+  User copyWith({
+    int? id,
+    String? namaLengkap,
+    String? email,
+    String? role,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? nik,
+    DateTime? tanggalLahir,
+    String? tempatLahir,
+    String? nomorTelepon,
+    String? instagram,
+    String? facebook,
+    String? alamat,
+    String? kota,
+    String? negara,
+    String? kodePos,
+    String? rtRw,
+    bool? isVerified,
+    String? kkFileUrl,
+    int? reportCount,
+    int? emergencyCount,
+    int? activityCount,
+    String? bio,
+    bool? isOnline,
+  }) {
+    return User(
+      id: id ?? this.id,
+      namaLengkap: namaLengkap ?? this.namaLengkap,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      nik: nik ?? this.nik,
+      tanggalLahir: tanggalLahir ?? this.tanggalLahir,
+      tempatLahir: tempatLahir ?? this.tempatLahir,
+      nomorTelepon: nomorTelepon ?? this.nomorTelepon,
+      instagram: instagram ?? this.instagram,
+      facebook: facebook ?? this.facebook,
+      alamat: alamat ?? this.alamat,
+      kota: kota ?? this.kota,
+      negara: negara ?? this.negara,
+      kodePos: kodePos ?? this.kodePos,
+      rtRw: rtRw ?? this.rtRw,
+      isVerified: isVerified ?? this.isVerified,
+      kkFileUrl: kkFileUrl ?? this.kkFileUrl,
+      reportCount: reportCount ?? this.reportCount,
+      emergencyCount: emergencyCount ?? this.emergencyCount,
+      activityCount: activityCount ?? this.activityCount,
+      bio: bio ?? this.bio,
+      isOnline: isOnline ?? this.isOnline,
+    );
+  }
 }
+

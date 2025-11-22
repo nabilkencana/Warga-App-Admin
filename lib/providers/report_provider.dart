@@ -5,6 +5,9 @@ import '../services/report_service.dart';
 
 class ReportProvider with ChangeNotifier {
   final ReportService _reportService = ReportService();
+  static const String baseUrl = 'http://wargakita.canadev.my.id';
+  static const String imageBaseUrl =
+      'http://wargakita.canadev.my.id'; // Base URL untuk gambar
 
   List<Report> _reports = [];
   List<Report> _filteredReports = [];
@@ -248,4 +251,25 @@ class ReportProvider with ChangeNotifier {
     // return _currentUserId == report.userId || _isAdmin;
     return true; // Temporary - replace with actual logic
   }
+
+  // Update method untuk mendapatkan URL gambar lengkap
+  String getFullImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) {
+      return '';
+    }
+
+    // Jika sudah full URL, return langsung
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // Jika path dimulai dengan /, tambahkan base URL
+    if (imagePath.startsWith('/')) {
+      return '$imageBaseUrl$imagePath';
+    }
+
+    // Default: tambahkan base URL dengan slash
+    return '$imageBaseUrl/$imagePath';
+  }
+
 }

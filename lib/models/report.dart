@@ -39,6 +39,18 @@ class Report {
     );
   }
 
+  // Method untuk mendapatkan URL gambar lengkap
+  String get fullImageUrl {
+    if (imageUrl == null || imageUrl!.isEmpty) return '';
+
+    if (imageUrl!.startsWith('http')) {
+      return imageUrl!;
+    }
+
+    // Tambahkan base URL ke path relatif
+    return 'http://wargakita.canadev.my.id${imageUrl!.startsWith('/') ? imageUrl : '/$imageUrl'}';
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

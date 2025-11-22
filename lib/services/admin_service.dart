@@ -5,7 +5,7 @@ import '../models/dashboard_stats.dart';
 import '../models/user.dart';
 
 class AdminService {
-  static const String baseUrl = 'http://apiwarga.digicodes.my.id/admin';
+  static const String baseUrl = 'http://wargakita.canadev.my.id/admin';
   final String token;
 
   AdminService(this.token);
