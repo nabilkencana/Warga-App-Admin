@@ -26,7 +26,7 @@ class ReportService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data is List) {
           return data.map((item) => Report.fromJson(item)).toList();
@@ -48,7 +48,7 @@ class ReportService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data is List) {
           return data.map((item) => Report.fromJson(item)).toList();
@@ -70,7 +70,7 @@ class ReportService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data is List) {
           return data.map((item) => Report.fromJson(item)).toList();
@@ -92,7 +92,7 @@ class ReportService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data is List) {
           return data.map((item) => Report.fromJson(item)).toList();
@@ -136,7 +136,8 @@ class ReportService {
         body: json.encode(requestData),
       );
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
+      if (response.statusCode == 201 ||
+          response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Report.fromJson(data);
       } else {
@@ -169,7 +170,7 @@ class ReportService {
         body: json.encode(requestData),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Report.fromJson(data);
       } else {
@@ -188,7 +189,7 @@ class ReportService {
         body: json.encode({'status': status}),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Report.fromJson(data);
       } else {
@@ -221,7 +222,7 @@ class ReportService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Report.fromJson(data);
       } else {

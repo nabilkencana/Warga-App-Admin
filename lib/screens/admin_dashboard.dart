@@ -1,6 +1,7 @@
 // screens/admin_dashboard_screen.dart - PERBAIKAN OVERFLOW + FITUR NOTIFIKASI
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:user_management_app/screens/bill_management_screen.dart';
 import '../providers/admin_provider.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -120,7 +121,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               SizedBox(height: 16), // Reduced spacing
 
               Text(
-                "Hai Admin! 👋",
+                "Hai Admin!!",
                 style: TextStyle(
                   fontSize: 20, // Reduced font size
                   color: Colors.white,
@@ -1120,6 +1121,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         style: TextStyle(
                           fontSize: 14, // Reduced font size
                           fontWeight: FontWeight.bold,
+                          color: Colors.white
                         ),
                       ),
                     ),
@@ -1412,6 +1414,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Navigator.pushNamed(context, "/reports");
         },
         'cardType': 'reports',
+      },
+      // Di dalam _getFilteredData method, tambahkan card untuk bills:
+       {
+        'color': Color(0xFFE1F5FE),
+        'icon': Icons.receipt_long,
+        'title': "Tagihan",
+        'count': stats?.totalBills ?? 0,
+        'subtitle': "Aktif",
+        'badgeCount': admin.getPendingBillsCount(),
+        'onTap': () => Navigator.pushNamed(context, "/bills"),
+        'cardType': 'bills',
       },
     ];
 

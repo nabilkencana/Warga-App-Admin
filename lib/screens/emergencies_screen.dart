@@ -331,7 +331,7 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
             ElevatedButton(
               onPressed: () => _showCreateEmergencyDialog(context),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Buat Laporan Darurat'),
+              child: const Text('Buat Laporan Darurat' , style: TextStyle(color: Colors.white),),
             ),
           ],
         ),

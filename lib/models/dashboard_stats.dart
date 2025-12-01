@@ -5,6 +5,9 @@ class DashboardStats {
   final int totalVolunteers;
   final int activeEmergencies;
   final int totalAnnouncements;
+  final int totalBills;
+  final int pendingBills;
+  final int overdueBills;
 
   DashboardStats({
     required this.totalUsers,
@@ -13,6 +16,9 @@ class DashboardStats {
     required this.totalVolunteers,
     required this.activeEmergencies,
     required this.totalAnnouncements,
+    required this.totalBills,
+    required this.pendingBills,
+    required this.overdueBills
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
@@ -23,8 +29,21 @@ class DashboardStats {
       totalVolunteers: json['totalVolunteers'] ?? 0,
       activeEmergencies: json['activeEmergencies'] ?? 0,
       totalAnnouncements: json['totalAnnouncements'] ?? 0,
+      totalBills: json['totalBills'] ?? 0,
+      pendingBills: json['pendingBills'] ?? 0,
+      overdueBills: json['overdueBills'] ?? 0 
     );
   }
 
-  toJson() {}
+  Map<String , dynamic> toJson() {
+    return {
+      'totalUsers': totalUsers,
+      'totalAnnouncements': totalAnnouncements,
+      'activeEmergencies': activeEmergencies,
+      'totalReports': totalReports,
+      'totalBills': totalBills, // ADD THIS
+      'pendingBills': pendingBills, // ADD THIS
+      'overdueBills': overdueBills, // ADD THIS
+    };
+  }
 }

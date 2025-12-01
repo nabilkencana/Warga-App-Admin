@@ -14,7 +14,7 @@ class UserService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
 
         // Debug: Print struktur response
@@ -41,7 +41,7 @@ class UserService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return User.fromJson(data);
       } else {
@@ -52,7 +52,7 @@ class UserService {
     }
   }
 
- Future<Map<String, int>> getUserStats(int userId) async {
+  Future<Map<String, int>> getUserStats(int userId) async {
     try {
       // Coba ambil dari user data terlebih dahulu
       final user = await getUserById(userId);
@@ -93,7 +93,7 @@ class UserService {
           headers: {'Content-Type': 'application/json'},
         );
 
-        if (reportsResponse.statusCode == 200) {
+        if (reportsResponse.statusCode.toString().startsWith('2')) {
           final reportsData = json.decode(reportsResponse.body);
           final reports = _extractListFromResponse(reportsData);
           totalReports = reports.length;
@@ -119,7 +119,7 @@ class UserService {
           headers: {'Content-Type': 'application/json'},
         );
 
-        if (activitiesResponse.statusCode == 200) {
+        if (activitiesResponse.statusCode.toString().startsWith('2')) {
           final activitiesData = json.decode(activitiesResponse.body);
           final activities = _extractListFromResponse(activitiesData);
           totalActivities = activities.length;
@@ -181,7 +181,7 @@ class UserService {
         body: json.encode(updateData),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return User.fromJson(data);
       } else {
@@ -200,7 +200,7 @@ class UserService {
         body: json.encode({'role': role}),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return User.fromJson(data);
       } else {
@@ -219,7 +219,7 @@ class UserService {
         body: json.encode({'isVerified': isVerified}),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return User.fromJson(data);
       } else {
@@ -239,7 +239,7 @@ class UserService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      if (response.statusCode != 200) {
+      if (!response.statusCode.toString().startsWith('2')) {
         throw Exception('Failed to delete user: ${response.statusCode}');
       }
     } catch (e) {
@@ -266,7 +266,7 @@ class UserService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data is List) {
           return data.map((userData) => User.fromJson(userData)).toList();

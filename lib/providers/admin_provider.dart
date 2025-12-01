@@ -67,6 +67,11 @@ class AdminProvider with ChangeNotifier {
   void setContext(BuildContext context) {
     _context = context;
   }
+  
+  int getPendingBillsCount() {
+  // Ini adalah contoh implementasi - sesuaikan dengan data aktual Anda
+  return dashboardStats?.pendingBills ?? 0;
+}
 
   // ==================== AUTO-REFRESH IMPLEMENTATION ====================
 

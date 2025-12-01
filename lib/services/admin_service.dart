@@ -24,7 +24,7 @@ class AdminService {
 
       final response = await http.get(url, headers: headers);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return DashboardStats.fromJson(data);
       } else {
@@ -46,7 +46,7 @@ class AdminService {
 
       final response = await http.get(url, headers: headers);
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => User.fromJson(json)).toList();
       } else {
@@ -70,7 +70,7 @@ class AdminService {
       print('Response Status: ${response.statusCode}');
       print('Response Body Length: ${response.body.length}');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final List<dynamic> data = json.decode(response.body);
         print('Total users received: ${data.length}');
         return data.map((json) => User.fromJson(json)).toList();

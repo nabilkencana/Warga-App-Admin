@@ -29,7 +29,7 @@ class AnnouncementService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data is List) {
           return data.map((item) => Announcement.fromJson(item)).toList();
@@ -64,7 +64,8 @@ class AnnouncementService {
         }),
       );
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
+      if (response.statusCode == 201 ||
+          response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         if (data['announcement'] != null) {
           return Announcement.fromJson(data['announcement']);
@@ -99,7 +100,7 @@ class AnnouncementService {
         }),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Announcement.fromJson(data);
       } else {
@@ -132,7 +133,7 @@ class AnnouncementService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Announcement.fromJson(data);
       } else {

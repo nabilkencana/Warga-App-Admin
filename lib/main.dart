@@ -1,4 +1,4 @@
-// main.dart
+// main.dart - UPDATED WITH BILL MANAGEMENT
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:user_management_app/models/user.dart';
@@ -11,8 +11,10 @@ import 'screens/announcements_screen.dart';
 import 'screens/emergencies_screen.dart';
 import 'screens/volunteers_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/bill_management_screen.dart'; // ADD THIS IMPORT
 import 'providers/admin_provider.dart';
 import 'providers/announcement_provider.dart';
+import 'providers/bill_provider.dart'; // ADD THIS IMPORT
 import 'services/admin_service.dart';
 
 void main() {
@@ -25,31 +27,43 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Define your base URL and token
+    const String baseUrl =
+        'https://wargakita.canadev.my.id'; // Replace with your actual API URL
+    const String token =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwibmFtZSI6Ik5hYmlsIEFkbWluIiwiaWF0IjoxNzY0NTU5NTM1LCJleHAiOjE4NTA5NTk1MzV9.l7XhhUEOKYCjLnIIQSrQ1u5vkAZhNguWQ1UslBIJHoY';
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (context) =>
-              AdminProvider(AdminService('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYzODAzNzUyLCJleHAiOjE3NjM4OTAxNTJ9.lPX0keanO12WRkdSeu3aTq03C73PgFJT9q-yF-6Y9Vs')),
+          create: (context) => AdminProvider(AdminService(token)),
         ),
         ChangeNotifierProvider(create: (context) => AnnouncementProvider()),
         ChangeNotifierProvider(create: (context) => ReportProvider()),
+        ChangeNotifierProvider(create: (context) => EmergencyProvider()),
+        // ADD BILL PROVIDER
         ChangeNotifierProvider(
-          create: (context) => EmergencyProvider(),
-        ), // Tambahkan ini
+          create: (context) => BillProvider(baseUrl: baseUrl, token: token),
+        ),
       ],
       child: MaterialApp(
-        title: 'WARGA KITA',
-        theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'Inter'),
+        title: 'WARGA KITA - Admin Dashboard',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          fontFamily: 'Inter',
+          useMaterial3: true,
+        ),
         debugShowCheckedModeBanner: false,
         initialRoute: '/',
         routes: {
-          '/': (context) => AdminDashboardScreen(token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzYzODAzNzUyLCJleHAiOjE3NjM4OTAxNTJ9.lPX0keanO12WRkdSeu3aTq03C73PgFJT9q-yF-6Y9Vs'),
-
+          '/': (context) => AdminDashboardScreen(token: token),
           '/users': (context) => UsersScreen(),
           '/announcements': (context) => AnnouncementsScreen(),
           '/emergencies': (context) => EmergenciesScreen(),
           '/volunteers': (context) => VolunteersScreen(),
           '/reports': (context) => ReportsScreen(),
+          // ADD BILL MANAGEMENT ROUTE
+          '/bills': (context) => BillManagementScreen(token: token),
           '/user-detail': (context) {
             final user = ModalRoute.of(context)!.settings.arguments as User;
             return UserDetailScreen(userId: user.id);
