@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "user_management_app" "\0"
+            VALUE "FileDescription", "wargaapp_admin" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "user_management_app" "\0"
+            VALUE "InternalName", "wargaapp_admin" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "user_management_app.exe" "\0"
-            VALUE "ProductName", "user_management_app" "\0"
+            VALUE "OriginalFilename", "wargaapp_admin.exe" "\0"
+            VALUE "ProductName", "wargaapp_admin" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

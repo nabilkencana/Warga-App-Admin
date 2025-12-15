@@ -23,7 +23,6 @@ class _BillManagementScreenState extends State<BillManagementScreen> {
 
   // ✅ TAMBAHKAN VARIABEL INI:
   List<Map<String, dynamic>> _allUsers = [];
-  bool _isLoadingUsers = false;
 
   String _formatNumber(dynamic number) {
     // Convert to double jika perlu
@@ -60,7 +59,6 @@ class _BillManagementScreenState extends State<BillManagementScreen> {
   // ✅ METHOD UNTUK LOAD USERS
   Future<void> _loadUsers() async {
     print('🔄 Loading users...');
-    setState(() => _isLoadingUsers = true);
 
     try {
       final billProvider = Provider.of<BillProvider>(context, listen: false);
@@ -70,13 +68,11 @@ class _BillManagementScreenState extends State<BillManagementScreen> {
 
       setState(() {
         _allUsers = users;
-        _isLoadingUsers = false;
       });
     } catch (e) {
       print('❌ Error loading users: $e');
       setState(() {
         _allUsers = [];
-        _isLoadingUsers = false;
       });
     }
   }

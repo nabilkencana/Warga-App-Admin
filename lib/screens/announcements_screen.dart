@@ -621,7 +621,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildOwnerActions(Announcement announcement, BuildContext context) {
-    final provider = Provider.of<AnnouncementProvider>(context, listen: false);
+    Provider.of<AnnouncementProvider>(context, listen: false);
 
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert, color: Colors.grey[500]),
@@ -656,7 +656,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     Announcement announcement,
     BuildContext context,
   ) {
-    final provider = Provider.of<AnnouncementProvider>(context, listen: false);
+    Provider.of<AnnouncementProvider>(context, listen: false);
 
     switch (action) {
       case 'edit':

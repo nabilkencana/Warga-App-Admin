@@ -1,11 +1,11 @@
 // main.dart - UPDATED WITH BILL MANAGEMENT
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:user_management_app/models/user.dart';
-import 'package:user_management_app/providers/emergency_provider.dart';
-import 'package:user_management_app/providers/report_provider.dart';
-import 'package:user_management_app/screens/admin_dashboard.dart';
-import 'package:user_management_app/screens/user_detail_screen.dart';
+import 'package:wargaapp_admin/models/user.dart';
+import 'package:wargaapp_admin/providers/emergency_provider.dart';
+import 'package:wargaapp_admin/providers/report_provider.dart';
+import 'package:wargaapp_admin/screens/admin_dashboard.dart';
+import 'package:wargaapp_admin/screens/user_detail_screen.dart';
 import 'screens/users_screen.dart';
 import 'screens/announcements_screen.dart';
 import 'screens/emergencies_screen.dart';
@@ -31,12 +31,12 @@ class MyApp extends StatelessWidget {
     const String baseUrl =
         'https://wargakita.canadev.my.id'; // Replace with your actual API URL
     const String token =
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwibmFtZSI6Ik5hYmlsIEFkbWluIiwiaWF0IjoxNzY0NTU5NTM1LCJleHAiOjE4NTA5NTk1MzV9.l7XhhUEOKYCjLnIIQSrQ1u5vkAZhNguWQ1UslBIJHoY';
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsImVtYWlsIjoibmFiaWxrZW5jYW5hMjBAZ21haWwuY29tIiwicm9sZSI6IkFETUlOIiwibmFtZSI6Ik5hYmlsIEFkbWluIiwiaWF0IjoxNzY1Nzk5MjkyLCJleHAiOjE4NTIxOTkyOTJ9.dKAMleKsfNl4X6p1bbZ4upq2cjZl6RNO9A6xQSAg2H0';
 
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (context) => AdminProvider(AdminService(token)),
+          create: (context) => AdminProvider(AdminService(token,)),
         ),
         ChangeNotifierProvider(create: (context) => AnnouncementProvider()),
         ChangeNotifierProvider(create: (context) => ReportProvider()),

@@ -5,7 +5,7 @@ import '../models/announcement.dart';
 
 class AnnouncementService {
   static const String baseUrl =
-      'http://wargakita.canadev.my.id'; // Ganti dengan URL API Anda
+      'https://wargakita.canadev.my.id'; // Ganti dengan URL API Anda
 
   // Tambahkan token management
   Future<Map<String, String>> _getHeaders() async {

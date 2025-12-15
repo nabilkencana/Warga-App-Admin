@@ -246,7 +246,7 @@ class AdminProvider with ChangeNotifier {
     // Generate new user notifications
     if (_recentUsers.isNotEmpty) {
       final newUsersCount = _recentUsers.where((user) {
-        final difference = now.difference(user.createdAt ?? now);
+        final difference = now.difference(user.createdAt);
         return difference.inHours < 24;
       }).length;
 

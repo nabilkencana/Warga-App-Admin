@@ -658,61 +658,8 @@ class _UsersScreenState extends State<UsersScreen>
     }
   }
 
-  Future<void> _updateUser(BuildContext context, User user) async {
-    setState(() => _isLoading = true);
-
-    try {
-      final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-
-      // Create updated user object manually (karena tidak ada copyWith)
-      final updatedUser = User(
-        id: user.id,
-        namaLengkap: _nameController.text,
-        email: _emailController.text,
-        role: _selectedRole,
-        nomorTelepon: _phoneController.text.isEmpty ? null : _phoneController.text,
-        alamat: _addressController.text.isEmpty
-            ? null
-            : _addressController.text,
-        createdAt: user.createdAt,
-        updatedAt: DateTime.now(),
-      );
-
-      // PUT/PATCH - Update user (simulasi)
-      // Di sini Anda bisa menambahkan call API sebenarnya
-      await Future.delayed(Duration(milliseconds: 500)); // Simulasi API call
-
-      // Update in provider
-      adminProvider.updateUser(updatedUser);
-
-      _showSuccessSnackbar(context, 'User berhasil diupdate!');
-      Navigator.pop(context);
-      _resetFormControllers();
-    } catch (e) {
-      _showErrorSnackbar(context, 'Gagal mengupdate user: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
 
 
-  Future<void> _deleteUser(BuildContext context, User user) async {
-    try {
-      final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-
-      // DELETE - Delete user (simulasi)
-      // Di sini Anda bisa menambahkan call API sebenarnya
-      await Future.delayed(Duration(milliseconds: 500)); // Simulasi API call
-
-      // Delete from provider
-      adminProvider.deleteUser(user.id as String);
-
-      _showSuccessSnackbar(context, 'User berhasil dihapus!');
-      Navigator.pop(context); // Close confirmation dialog
-    } catch (e) {
-      _showErrorSnackbar(context, 'Gagal menghapus user: $e');
-    }
-  }
 
   // --------------------- HELPER METHODS ----------------------
   void _resetFormControllers() {
@@ -729,9 +676,6 @@ class _UsersScreenState extends State<UsersScreen>
         _passwordController.text.isNotEmpty;
   }
 
-  bool _isEditFormValid() {
-    return _nameController.text.isNotEmpty && _emailController.text.isNotEmpty;
-  }
 
   Widget _buildLoadingButton() {
     return SizedBox(

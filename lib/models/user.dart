@@ -1,4 +1,5 @@
-// models/user.dart
+// models/user.dart - UPDATE dengan properti KK yang lengkap
+
 class User {
   final int id;
   final String namaLengkap;
@@ -25,6 +26,13 @@ class User {
   final String? bio;
   final bool? isOnline;
 
+  // 🎯 NEW: KK Verification Properties
+  final String? kkVerificationStatus;
+  final String? kkRejectionReason;
+  final DateTime? kkVerifiedAt;
+  final String? kkVerifiedBy;
+  final String? kkPublicId;
+
   User({
     required this.id,
     required this.namaLengkap,
@@ -50,6 +58,13 @@ class User {
     this.activityCount,
     this.bio,
     this.isOnline,
+
+    // 🎯 NEW
+    this.kkVerificationStatus,
+    this.kkRejectionReason,
+    this.kkVerifiedAt,
+    this.kkVerifiedBy,
+    this.kkPublicId,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -74,12 +89,23 @@ class User {
       kodePos: json['kodePos'],
       rtRw: json['rtRw'],
       isVerified: json['isVerified'] ?? false,
-      kkFileUrl: json['kkFileUrl'],
+      kkFileUrl: json['kkFile'],
       reportCount: json['reportCount'],
       emergencyCount: json['emergencyCount'],
       activityCount: json['activityCount'],
       bio: json['bio'],
       isOnline: json['isOnline'],
+
+      // 🎯 NEW
+      kkVerificationStatus:
+          json['kkVerificationStatus'] ??
+          (json['isVerified'] == true ? 'verified' : 'pending'),
+      kkRejectionReason: json['kkRejectionReason'],
+      kkVerifiedAt: json['kkVerifiedAt'] != null
+          ? DateTime.parse(json['kkVerifiedAt'])
+          : null,
+      kkVerifiedBy: json['kkVerifiedBy'],
+      kkPublicId: json['kkFilePublicId'],
     );
   }
 
@@ -103,16 +129,22 @@ class User {
       'kodePos': kodePos,
       'rtRw': rtRw,
       'isVerified': isVerified,
-      'kkFileUrl': kkFileUrl,
+      'kkFile': kkFileUrl,
       'reportCount': reportCount,
       'emergencyCount': emergencyCount,
       'activityCount': activityCount,
       'bio': bio,
       'isOnline': isOnline,
+
+      // 🎯 NEW
+      'kkVerificationStatus': kkVerificationStatus,
+      'kkRejectionReason': kkRejectionReason,
+      'kkVerifiedAt': kkVerifiedAt?.toIso8601String(),
+      'kkVerifiedBy': kkVerifiedBy,
+      'kkFilePublicId': kkPublicId,
     };
   }
 
-  // Method untuk mendapatkan statistik dalam format yang konsisten
   Map<String, int> getStats() {
     return {
       'laporan': reportCount ?? 0,
@@ -121,7 +153,6 @@ class User {
     };
   }
 
-  // Copy with method untuk update data
   User copyWith({
     int? id,
     String? namaLengkap,
@@ -147,6 +178,13 @@ class User {
     int? activityCount,
     String? bio,
     bool? isOnline,
+
+    // 🎯 NEW
+    String? kkVerificationStatus,
+    String? kkRejectionReason,
+    DateTime? kkVerifiedAt,
+    String? kkVerifiedBy,
+    String? kkPublicId,
   }) {
     return User(
       id: id ?? this.id,
@@ -173,7 +211,13 @@ class User {
       activityCount: activityCount ?? this.activityCount,
       bio: bio ?? this.bio,
       isOnline: isOnline ?? this.isOnline,
+
+      // 🎯 NEW
+      kkVerificationStatus: kkVerificationStatus ?? this.kkVerificationStatus,
+      kkRejectionReason: kkRejectionReason ?? this.kkRejectionReason,
+      kkVerifiedAt: kkVerifiedAt ?? this.kkVerifiedAt,
+      kkVerifiedBy: kkVerifiedBy ?? this.kkVerifiedBy,
+      kkPublicId: kkPublicId ?? this.kkPublicId,
     );
   }
 }
-

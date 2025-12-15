@@ -18,13 +18,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isRefreshing = false;
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+  Map<String, dynamic>? _reportStats;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
+      _scrollController.addListener(_scrollListener);
     });
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreData();
+    }
   }
 
   ImageProvider _getImageProvider(String imageUrl) {
@@ -32,15 +43,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
       return NetworkImage(imageUrl);
     } else if (imageUrl.startsWith('file://')) {
       return FileImage(File(imageUrl.replaceFirst('file://', '')));
+    } else if (imageUrl.startsWith('/')) {
+      return NetworkImage('${ReportProvider.imageBaseUrl}$imageUrl');
     } else {
       return FileImage(File(imageUrl));
     }
   }
 
   Widget _buildImageWidget(String imageUrl) {
-    if (imageUrl.startsWith('http')) {
+    if (imageUrl.startsWith('http') || imageUrl.startsWith('/')) {
+      final fullUrl = imageUrl.startsWith('/')
+          ? '${ReportProvider.imageBaseUrl}$imageUrl'
+          : imageUrl;
+
       return Image.network(
-        imageUrl,
+        fullUrl,
         width: double.infinity,
         height: 250,
         fit: BoxFit.cover,
@@ -103,10 +120,44 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _initializeData() async {
     try {
       final provider = Provider.of<ReportProvider>(context, listen: false);
-      await provider.loadReports();
+      await provider.loadReports(refresh: true);
+
+      // Load statistics
+      final stats = await provider.getStatistics();
+      setState(() {
+        _reportStats = stats;
+      });
+
       provider.setCurrentUserId(1); // Ganti dengan ID user yang login
     } catch (e) {
       _showErrorSnackbar('Gagal memuat data awal: $e');
+    }
+  }
+
+  Future<void> _loadMoreData() async {
+    if (_isLoadingMore) return;
+
+    final provider = Provider.of<ReportProvider>(context, listen: false);
+    if (!provider.hasMore || provider.isLoading) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      if (_searchQuery.isNotEmpty) {
+        await provider.searchReports(_searchQuery);
+      } else if (provider.selectedCategory != 'Semua') {
+        await provider.loadReportsByCategory(provider.selectedCategory);
+      } else if (provider.selectedFilter != 'Semua') {
+        await provider.loadReportsByStatus(provider.selectedFilter);
+      } else {
+        await provider.loadReports();
+      }
+    } catch (e) {
+      _showErrorSnackbar('Gagal memuat data tambahan: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
     }
   }
 
@@ -137,6 +188,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -144,11 +196,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (_searchQuery.isEmpty) return reports;
 
     return reports.where((report) {
-      return report.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          report.description.toLowerCase().contains(
+      return (report.title).toLowerCase().contains(
             _searchQuery.toLowerCase(),
           ) ||
-          report.category.toLowerCase().contains(_searchQuery.toLowerCase());
+          (report.description).toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ) ||
+          (report.category).toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          );
     }).toList();
   }
 
@@ -156,7 +212,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     setState(() => _isRefreshing = true);
     try {
       final provider = Provider.of<ReportProvider>(context, listen: false);
-      await provider.loadReports();
+      await provider.refreshData(
+        searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+      );
+
+      // Refresh statistics
+      final stats = await provider.getStatistics();
+      setState(() {
+        _reportStats = stats;
+      });
     } catch (e) {
       _showErrorSnackbar('Gagal menyegarkan data: $e');
     } finally {
@@ -209,8 +273,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
               _buildSearchBar(),
 
               // Quick Stats
-              if (!provider.isLoading && provider.reports.isNotEmpty)
-                _buildQuickStats(provider),
+              if (!provider.isLoading &&
+                  (provider.reports.isNotEmpty || _reportStats != null))
+                // _buildQuickStats(provider),
 
               // Filter Section
               _buildFilterSection(provider),
@@ -254,6 +319,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     onPressed: () {
                       _searchController.clear();
                       setState(() => _searchQuery = '');
+                      _refreshData();
                     },
                     tooltip: 'Hapus Pencarian',
                   )
@@ -269,105 +335,138 @@ class _ReportsScreenState extends State<ReportsScreen> {
               vertical: 16,
             ),
           ),
-          onChanged: (value) => setState(() => _searchQuery = value),
+          onChanged: (value) {
+            setState(() => _searchQuery = value);
+            // Debounce search
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (_searchQuery == value) {
+                _refreshData();
+              }
+            });
+          },
         ),
       ),
     );
   }
 
-  Widget _buildQuickStats(ReportProvider provider) {
-    final stats = provider.getReportStats();
+  // Widget _buildQuickStats(ReportProvider provider) {
+  //   // Use server stats if available, otherwise use local stats
+  //   final stats = _reportStats ?? provider.getLocalReportStats();
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple, Colors.purple.shade800],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.purple.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildStatItem(
-            'Total',
-            stats['total']!.toString(),
-            Icons.assessment_rounded,
-            'Semua laporan',
-          ),
-          _buildStatItem(
-            'Pending',
-            stats['pending']!.toString(),
-            Icons.pending_actions_rounded,
-            'Laporan menunggu',
-          ),
-          _buildStatItem(
-            'Diproses',
-            stats['in_progress']!.toString(),
-            Icons.autorenew_rounded,
-            'Sedang diproses',
-          ),
-          _buildStatItem(
-            'Selesai',
-            stats['completed']!.toString(),
-            Icons.check_circle_rounded,
-            'Laporan selesai',
-          ),
-        ],
-      ),
-    );
-  }
+  //   // Handle both server and local stats formats
+  //   Map<String, dynamic> displayStats = {};
 
-  Widget _buildStatItem(
-    String label,
-    String value,
-    IconData icon,
-    String tooltip,
-  ) {
-    return Tooltip(
-      message: tooltip,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.white.withOpacity(0.9),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  //   if (stats.containsKey('byStatus')) {
+  //     // Server stats format
+  //     final statusData = stats['byStatus'];
+  //     displayStats = {
+  //       'total': stats['total'] ?? 0,
+  //       'pending': statusData?['pending'] ?? 0,
+  //       'processing': statusData?['processing'] ?? 0,
+  //       'resolved': statusData?['resolved'] ?? 0,
+  //       'rejected': statusData?['rejected'] ?? 0,
+  //     };
+  //   } else {
+  //     // Local stats format
+  //     displayStats = {
+  //       'total': stats['total'] ?? 0,
+  //       'pending': stats['pending'] ?? 0,
+  //       'processing': stats['processing'] ?? 0,
+  //       'resolved': stats['resolved'] ?? 0,
+  //       'rejected': stats['rejected'] ?? 0,
+  //     };
+  //   }
+
+  //   return Container(
+  //     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //     padding: const EdgeInsets.all(20),
+  //     decoration: BoxDecoration(
+  //       gradient: LinearGradient(
+  //         colors: [Colors.purple, Colors.purple.shade800],
+  //         begin: Alignment.topLeft,
+  //         end: Alignment.bottomRight,
+  //       ),
+  //       borderRadius: BorderRadius.circular(20),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.purple.withOpacity(0.3),
+  //           blurRadius: 12,
+  //           offset: const Offset(0, 4),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.spaceAround,
+  //       children: [
+  //         _buildStatItem(
+  //           'Total',
+  //           displayStats['total'].toString(),
+  //           Icons.assessment_rounded,
+  //           'Semua laporan',
+  //         ),
+  //         _buildStatItem(
+  //           'Pending',
+  //           displayStats['pending'].toString(),
+  //           Icons.pending_actions_rounded,
+  //           'Laporan menunggu',
+  //         ),
+  //         _buildStatItem(
+  //           'Diproses',
+  //           displayStats['processing'].toString(),
+  //           Icons.autorenew_rounded,
+  //           'Sedang diproses',
+  //         ),
+  //         _buildStatItem(
+  //           'Selesai',
+  //           displayStats['resolved'].toString(),
+  //           Icons.check_circle_rounded,
+  //           'Laporan selesai',
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // Widget _buildStatItem(
+  //   String label,
+  //   String value,
+  //   IconData icon,
+  //   String tooltip,
+  // ) {
+  //   return Tooltip(
+  //     message: tooltip,
+  //     child: Column(
+  //       children: [
+  //         Container(
+  //           padding: const EdgeInsets.all(10),
+  //           decoration: BoxDecoration(
+  //             color: Colors.white.withOpacity(0.2),
+  //             shape: BoxShape.circle,
+  //           ),
+  //           child: Icon(icon, color: Colors.white, size: 22),
+  //         ),
+  //         const SizedBox(height: 6),
+  //         Text(
+  //           value,
+  //           style: const TextStyle(
+  //             fontSize: 18,
+  //             fontWeight: FontWeight.bold,
+  //             color: Colors.white,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 2),
+  //         Text(
+  //           label,
+  //           style: TextStyle(
+  //             fontSize: 11,
+  //             color: Colors.white.withOpacity(0.9),
+  //             fontWeight: FontWeight.w500,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildFilterSection(ReportProvider provider) {
     return Container(
@@ -412,7 +511,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
             'Status:',
             provider.statusFilters,
             provider.selectedFilter,
-            provider.setFilter,
+            (value) {
+              provider.setFilter(value);
+              if (value != 'Semua') {
+                provider.loadReportsByStatus(value, refresh: true);
+              } else {
+                provider.loadReports(refresh: true);
+              }
+            },
             Colors.purple,
           ),
           const SizedBox(height: 12),
@@ -422,7 +528,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
             'Kategori:',
             provider.categoryFilters,
             provider.selectedCategory,
-            provider.setCategory,
+            (value) {
+              provider.setCategory(value);
+              if (value != 'Semua') {
+                provider.loadReportsByCategory(value, refresh: true);
+              } else {
+                provider.loadReports(refresh: true);
+              }
+            },
             Colors.blue,
           ),
         ],
@@ -481,7 +594,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildContent(ReportProvider provider, List<Report> reports) {
-    if (provider.isLoading && provider.reports.isEmpty) {
+    if (provider.isLoading && provider.reports.isEmpty && !_isLoadingMore) {
       return _buildLoadingState();
     }
 
@@ -502,15 +615,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
       color: Colors.purple,
       backgroundColor: Colors.white,
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
-        itemCount: reports.length,
+        itemCount: reports.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index == reports.length) {
+            return _buildLoadMoreIndicator();
+          }
           final report = reports[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: _buildReportCard(report, context),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: const Center(
+        child: CircularProgressIndicator(color: Colors.purple, strokeWidth: 2),
       ),
     );
   }
@@ -564,7 +690,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () => provider.loadReports(),
+                  onPressed: () => provider.loadReports(refresh: true),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.purple,
                     padding: const EdgeInsets.symmetric(
@@ -602,53 +728,71 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildEmptyState(bool isFiltered) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isFiltered ? Icons.search_off_rounded : Icons.assignment_outlined,
-              size: 80,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              isFiltered ? 'Tidak Ada Hasil Ditemukan' : 'Belum Ada Laporan',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              isFiltered
-                  ? 'Coba ubah kata kunci pencarian atau filter yang digunakan'
-                  : 'Laporan dari masyarakat akan muncul di sini. Mulai dengan membuat laporan pertama!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-            if (!isFiltered) ...[
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => _showCreateReportDialog(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+    return SingleChildScrollView(
+      // Tambahkan SingleChildScrollView
+      child: Container(
+        constraints: BoxConstraints(
+          minHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // Penting!
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isFiltered
+                      ? Icons.search_off_rounded
+                      : Icons.assignment_outlined,
+                  size: 60, // Ukuran lebih kecil
+                  color: Colors.grey[400],
                 ),
-                icon: const Icon(Icons.add_comment_rounded),
-                label: const Text('Buat Laporan Pertama'),
-              ),
-            ],
-          ],
+                const SizedBox(height: 16),
+                Text(
+                  isFiltered
+                      ? 'Tidak Ada Hasil Ditemukan'
+                      : 'Belum Ada Laporan',
+                  style: TextStyle(
+                    fontSize: 16, // Font lebih kecil
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isFiltered
+                      ? 'Coba ubah kata kunci pencarian atau filter yang digunakan'
+                      : 'Laporan dari masyarakat akan muncul di sini.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14, // Font lebih kecil
+                  ),
+                  maxLines: 2,
+                ),
+                if (!isFiltered) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => _showCreateReportDialog(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.add_comment_rounded, size: 16 , color: Colors.white,),
+                    label: const Text('Buat Laporan' ,style: TextStyle(color: Colors.white),),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -657,6 +801,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildReportCard(Report report, BuildContext context) {
     final provider = Provider.of<ReportProvider>(context, listen: false);
     final canEdit = provider.canEditReport(report);
+    final canDelete = provider.canDeleteReport(report);
+
+    // Get status color and text
+    final statusColor = _getStatusColor(report.status);
+    final statusText = _getStatusText(report.status);
+    final categoryIcon = _getCategoryIcon(report.category);
+    final categoryText = report.category;
+    final timeAgo = _getTimeAgo(report.createdAt);
 
     return Card(
       elevation: 4,
@@ -666,9 +818,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(color: report.statusColor, width: 6),
-            ),
+            border: Border(left: BorderSide(color: statusColor, width: 6)),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -681,19 +831,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: report.statusColor.withOpacity(0.1),
+                        color: statusColor.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        report.categoryIcon,
-                        size: 18,
-                        color: report.statusColor,
-                      ),
+                      child: Icon(categoryIcon, size: 18, color: statusColor),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        report.categoryText,
+                        categoryText,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey[600],
@@ -707,14 +853,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: report.statusColor.withOpacity(0.1),
+                        color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        report.statusText.toUpperCase(),
+                        statusText.toUpperCase(),
                         style: TextStyle(
                           fontSize: 10,
-                          color: report.statusColor,
+                          color: statusColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -749,7 +895,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Image preview jika ada - DIPERBAIKI
+                // Image preview jika ada
                 if (report.imageUrl != null && report.imageUrl!.isNotEmpty) ...[
                   Container(
                     height: 140,
@@ -766,7 +912,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ],
 
                 // Progress bar untuk status
-                if (report.status != 'COMPLETED' && report.status != 'REJECTED')
+                if (report.status != 'RESOLVED' && report.status != 'REJECTED')
                   _buildProgressBar(report.status),
 
                 const SizedBox(height: 12),
@@ -781,7 +927,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      report.timeAgo,
+                      timeAgo,
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const Spacer(),
@@ -801,7 +947,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                       const SizedBox(width: 12),
                     ],
-                    if (canEdit) _buildActionMenu(report, context),
+                    if (canEdit || canDelete)
+                      _buildActionMenu(report, context, canEdit, canDelete),
                   ],
                 ),
               ],
@@ -812,45 +959,67 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildActionMenu(Report report, BuildContext context) {
-    final provider = Provider.of<ReportProvider>(context, listen: false);
-
+  Widget _buildActionMenu(
+    Report report,
+    BuildContext context,
+    bool canEdit,
+    bool canDelete,
+  ) {
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert_rounded, size: 18, color: Colors.grey),
       onSelected: (value) => _handleAction(value, report, context),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'edit',
-          child: const Row(
-            children: [
-              Icon(Icons.edit_rounded, size: 16, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Edit Laporan'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'status',
-          child: const Row(
-            children: [
-              Icon(Icons.update_rounded, size: 16, color: Colors.orange),
-              SizedBox(width: 8),
-              Text('Ubah Status'),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_rounded, size: 16, color: Colors.red[400]),
-              const SizedBox(width: 8),
-              const Text('Hapus Laporan'),
-            ],
-          ),
-        ),
-      ],
+      itemBuilder: (context) {
+        final items = <PopupMenuEntry<String>>[];
+
+        if (canEdit) {
+          items.add(
+            PopupMenuItem(
+              value: 'edit',
+              child: const Row(
+                children: [
+                  Icon(Icons.edit_rounded, size: 16, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Edit Laporan'),
+                ],
+              ),
+            ),
+          );
+
+          items.add(
+            PopupMenuItem(
+              value: 'status',
+              child: const Row(
+                children: [
+                  Icon(Icons.update_rounded, size: 16, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Text('Ubah Status'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (canDelete) {
+          if (canEdit) {
+            items.add(const PopupMenuDivider());
+          }
+
+          items.add(
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_rounded, size: 16, color: Colors.red[400]),
+                  const SizedBox(width: 8),
+                  const Text('Hapus Laporan'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return items;
+      },
     );
   }
 
@@ -868,17 +1037,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  Widget _buildProgressBar(String status) {
+  Widget _buildProgressBar(String? status) {
+    if (status == null) return const SizedBox();
+
     double progress = 0.0;
     String progressText = 'Menunggu';
 
     if (status == 'PENDING') {
       progress = 0.3;
       progressText = 'Dalam Antrian';
-    } else if (status == 'IN_PROGRESS') {
+    } else if (status == 'PROCESSING') {
       progress = 0.7;
       progressText = 'Sedang Diproses';
-    } else if (status == 'COMPLETED') {
+    } else if (status == 'RESOLVED') {
       progress = 1.0;
       progressText = 'Selesai';
     }
@@ -918,7 +1089,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
     String selectedCategory = 'Umum';
-    String? imageUrl;
+    File? imageFile;
 
     showDialog(
       context: context,
@@ -1001,7 +1172,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         setState(() => selectedCategory = value!),
                   ),
                   const SizedBox(height: 16),
-                  // Bagian upload gambar - DIPERBAIKI
+                  // Bagian upload gambar
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -1033,18 +1204,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
                           onPressed: () async {
-                            // Pilih gambar dari gallery atau camera
-                            final XFile? image = await ImagePicker().pickImage(
-                              source: ImageSource.gallery,
-                              maxWidth: 1200,
-                              maxHeight: 1200,
-                              imageQuality: 80,
-                            );
+                            final XFile? pickedFile = await ImagePicker()
+                                .pickImage(
+                                  source: ImageSource.gallery,
+                                  maxWidth: 1200,
+                                  maxHeight: 1200,
+                                  imageQuality: 80,
+                                );
 
-                            if (image != null) {
+                            if (pickedFile != null) {
                               setState(() {
-                                // Simpan path file lokal
-                                imageUrl = image.path;
+                                imageFile = File(pickedFile.path);
                               });
                               _showSuccessSnackbar('Gambar berhasil diunggah');
                             }
@@ -1058,15 +1228,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ],
                     ),
                   ),
-                  // Preview gambar yang dipilih - DIPERBAIKI
-                  if (imageUrl != null) ...[
+                  // Preview gambar yang dipilih
+                  if (imageFile != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       height: 100,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         image: DecorationImage(
-                          image: _getImageProvider(imageUrl!),
+                          image: FileImage(imageFile!),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -1093,7 +1263,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         title: titleController.text,
                         description: descriptionController.text,
                         category: selectedCategory,
-                        imageUrl: imageUrl,
+                        imageFile: imageFile,
                       );
                       _showSuccessSnackbar(
                         'Laporan berhasil dibuat dan akan diproses!',
@@ -1122,7 +1292,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       text: report.description,
     );
     String selectedCategory = report.category;
-    String? imageUrl = report.imageUrl;
+    File? imageFile;
 
     showDialog(
       context: context,
@@ -1190,7 +1360,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         setState(() => selectedCategory = value!),
                   ),
                   const SizedBox(height: 16),
-                  // Bagian edit gambar - DIPERBAIKI
+                  // Bagian edit gambar
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -1205,13 +1375,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 8),
-                        if (imageUrl != null && imageUrl!.isNotEmpty)
+                        if (report.imageUrl != null &&
+                            report.imageUrl!.isNotEmpty)
                           Container(
                             height: 120,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
                               image: DecorationImage(
-                                image: _getImageProvider(imageUrl!),
+                                image: _getImageProvider(report.imageUrl!),
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -1237,16 +1408,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             Expanded(
                               child: OutlinedButton.icon(
                                 onPressed: () async {
-                                  final XFile? image = await ImagePicker()
+                                  final XFile? pickedFile = await ImagePicker()
                                       .pickImage(
                                         source: ImageSource.gallery,
                                         maxWidth: 1200,
                                         maxHeight: 1200,
                                         imageQuality: 80,
                                       );
-                                  if (image != null) {
+                                  if (pickedFile != null) {
                                     setState(() {
-                                      imageUrl = image.path;
+                                      imageFile = File(pickedFile.path);
                                     });
                                     _showSuccessSnackbar(
                                       'Gambar berhasil diubah',
@@ -1261,14 +1432,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            if (imageUrl != null && imageUrl!.isNotEmpty)
+                            if (report.imageUrl != null &&
+                                report.imageUrl!.isNotEmpty)
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () {
+                                  onPressed: () async {
+                                    // Set imageFile to null to indicate delete
                                     setState(() {
-                                      imageUrl = null;
+                                      imageFile = null;
                                     });
-                                    _showSuccessSnackbar('Gambar dihapus');
+                                    _showSuccessSnackbar(
+                                      'Gambar akan dihapus saat update',
+                                    );
                                   },
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red,
@@ -1307,7 +1482,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         title: titleController.text,
                         description: descriptionController.text,
                         category: selectedCategory,
-                        imageUrl: imageUrl,
+                        imageFile: imageFile,
                       );
                       _showSuccessSnackbar('Laporan berhasil diupdate');
                       Navigator.pop(context);
@@ -1344,77 +1519,77 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
               ],
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Ubah status untuk laporan:',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  report.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Ubah status untuk laporan:',
+                    style: TextStyle(color: Colors.grey[600]),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedStatus,
-                  decoration: const InputDecoration(
-                    labelText: 'Status Baru',
-                    border: OutlineInputBorder(),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      report.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'PENDING',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.pending_actions_rounded,
-                            color: Colors.orange,
-                          ),
-                          SizedBox(width: 8),
-                          Text('Menunggu'),
-                        ],
+                  const SizedBox(height: 16),
+
+                  // Status options dengan feedback visual
+                  Column(
+                    children: [
+                      _buildStatusOption(
+                        'PENDING',
+                        'Menunggu',
+                        Icons.pending_actions_rounded,
+                        Colors.orange,
+                        selectedStatus,
+                        setState,
                       ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'IN_PROGRESS',
-                      child: Row(
-                        children: [
-                          Icon(Icons.autorenew_rounded, color: Colors.blue),
-                          SizedBox(width: 8),
-                          Text('Diproses'),
-                        ],
+                      const SizedBox(height: 8),
+                      _buildStatusOption(
+                        'PROCESSING',
+                        'Diproses',
+                        Icons.autorenew_rounded,
+                        Colors.blue,
+                        selectedStatus,
+                        setState,
                       ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'COMPLETED',
-                      child: Row(
-                        children: [
-                          Icon(Icons.check_circle_rounded, color: Colors.green),
-                          SizedBox(width: 8),
-                          Text('Selesai'),
-                        ],
+                      const SizedBox(height: 8),
+                      _buildStatusOption(
+                        'RESOLVED',
+                        'Selesai',
+                        Icons.check_circle_rounded,
+                        Colors.green,
+                        selectedStatus,
+                        setState,
                       ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'REJECTED',
-                      child: Row(
-                        children: [
-                          Icon(Icons.cancel_rounded, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Ditolak'),
-                        ],
+                      const SizedBox(height: 8),
+                      _buildStatusOption(
+                        'REJECTED',
+                        'Ditolak',
+                        Icons.cancel_rounded,
+                        Colors.red,
+                        selectedStatus,
+                        setState,
                       ),
-                    ),
-                  ],
-                  onChanged: (value) => setState(() => selectedStatus = value!),
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -1423,20 +1598,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  try {
-                    final provider = Provider.of<ReportProvider>(
-                      context,
-                      listen: false,
-                    );
-                    await provider.updateReportStatus(
-                      report.id,
-                      selectedStatus,
-                    );
-                    _showSuccessSnackbar('Status laporan berhasil diubah');
-                    Navigator.pop(context);
-                  } catch (e) {
-                    _showErrorSnackbar('Gagal mengubah status: $e');
-                  }
+                  Navigator.pop(context); // Tutup dialog dulu
+                  await _updateReportStatus(report, selectedStatus);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                 child: const Text('Simpan Status'),
@@ -1446,6 +1609,110 @@ class _ReportsScreenState extends State<ReportsScreen> {
         },
       ),
     );
+  }
+
+  Widget _buildStatusOption(
+    String value,
+    String label,
+    IconData icon,
+    Color color,
+    String selectedStatus,
+    Function setState,
+  ) {
+    final isSelected = selectedStatus == value;
+
+    return InkWell(
+      onTap: () => setState(() => selectedStatus = value),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? color : Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? color : Colors.grey.shade700,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (isSelected) Icon(Icons.check_circle, color: color, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateReportStatus(Report report, String status) async {
+    final provider = Provider.of<ReportProvider>(context, listen: false);
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Mengupdate status...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await provider.updateReportStatus(report.id, status);
+
+      Navigator.pop(context); // Close loading dialog
+
+      // Show success
+      _showSuccessSnackbar(result['message'] ?? 'Status berhasil diubah');
+
+      // Refresh data
+      await provider.refreshData();
+    } catch (e) {
+      Navigator.pop(context); // Close loading dialog
+
+      // Show error with retry option
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Gagal Mengupdate'),
+            ],
+          ),
+          content: Text(e.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showStatusDialog(context, report);
+              },
+              child: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _showDeleteDialog(BuildContext context, Report report) {
@@ -1590,14 +1857,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: report.statusColor.withOpacity(0.1),
+                              color: _getStatusColor(
+                                report.status,
+                              ).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: report.statusColor),
+                              border: Border.all(
+                                color: _getStatusColor(report.status),
+                              ),
                             ),
                             child: Text(
-                              report.statusText.toUpperCase(),
+                              _getStatusText(report.status).toUpperCase(),
                               style: TextStyle(
-                                color: report.statusColor,
+                                color: _getStatusColor(report.status),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -1615,7 +1886,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               border: Border.all(color: Colors.blue),
                             ),
                             child: Text(
-                              report.categoryText.toUpperCase(),
+                              (report.category).toUpperCase(),
                               style: const TextStyle(
                                 color: Colors.blue,
                                 fontWeight: FontWeight.bold,
@@ -1657,7 +1928,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       ),
                       const SizedBox(height: 20),
 
-                      // Gambar yang dilaporkan - DIPERBAIKI
+                      // Gambar yang dilaporkan
                       if (report.imageUrl != null &&
                           report.imageUrl!.isNotEmpty) ...[
                         const Text(
@@ -1884,7 +2155,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  // Method untuk menampilkan gambar full screen - DIPERBAIKI
+  // Method untuk menampilkan gambar full screen
   void _showImageFullScreen(
     BuildContext context,
     String imageUrl,
@@ -1909,9 +2180,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 minScale: 0.5,
                 maxScale: 3.0,
                 child: Center(
-                  child: imageUrl.startsWith('http')
+                  child:
+                      (imageUrl.startsWith('http') || imageUrl.startsWith('/'))
                       ? Image.network(
-                          imageUrl,
+                          imageUrl.startsWith('/')
+                              ? '${ReportProvider.imageBaseUrl}$imageUrl'
+                              : imageUrl,
                           fit: BoxFit.contain,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
@@ -2021,5 +2295,72 @@ class _ReportsScreenState extends State<ReportsScreen> {
         Text('Gagal memuat gambar', style: TextStyle(color: Colors.white)),
       ],
     );
+  }
+
+  // Helper methods
+  Color _getStatusColor(String? status) {
+    switch (status?.toUpperCase()) {
+      case 'PENDING':
+        return Colors.orange;
+      case 'PROCESSING':
+        return Colors.blue;
+      case 'RESOLVED':
+        return Colors.green;
+      case 'REJECTED':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _getStatusText(String? status) {
+    switch (status?.toUpperCase()) {
+      case 'PENDING':
+        return 'Menunggu';
+      case 'PROCESSING':
+        return 'Diproses';
+      case 'RESOLVED':
+        return 'Selesai';
+      case 'REJECTED':
+        return 'Ditolak';
+      default:
+        return 'Tidak diketahui';
+    }
+  }
+
+  IconData _getCategoryIcon(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'infrastruktur':
+        return Icons.construction_rounded;
+      case 'sampah':
+        return Icons.delete_rounded;
+      case 'keamanan':
+        return Icons.security_rounded;
+      case 'kesehatan':
+        return Icons.medical_services_rounded;
+      case 'lingkungan':
+        return Icons.eco_rounded;
+      default:
+        return Icons.description_rounded;
+    }
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()} tahun lalu';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} bulan lalu';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} hari lalu';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} jam lalu';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} menit lalu';
+    } else {
+      return 'Baru saja';
+    }
   }
 }
