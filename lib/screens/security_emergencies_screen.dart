@@ -109,6 +109,7 @@ class _SecurityEmergenciesScreenState extends State<SecurityEmergenciesScreen> {
                                   );
                                 }
                               : null,
+                          isAssigned: false,
                         );
                       },
                     ),

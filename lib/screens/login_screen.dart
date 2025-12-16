@@ -1,193 +1,76 @@
-// lib/screens/login_screen.dart
-import 'dart:async';
+// screens/auth/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:wargaapp_admin/providers/auth_provider.dart';
-import 'package:wargaapp_admin/screens/admin_dashboard.dart';
-import 'package:wargaapp_admin/screens/security_dashboard.dart';
-import 'package:wargaapp_admin/screens/verify_otp_screen.dart';
+import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _otpController = TextEditingController();
-  int _countdown = 60;
-  Timer? _timer;
-  bool _showGoogleLogin = true;
-
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
-
-  @override
-  void initState() {
-    super.initState();
-    _checkExistingLogin();
-    _loadPendingEmail();
-  }
+  bool _otpSent = false;
+  bool _showPassword = false;
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _emailController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
-  void _checkExistingLogin() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.isAuthenticated) {
-        _navigateBasedOnRole(authProvider.userRole!);
-      }
-    });
-  }
-
-  void _startCountdown() {
-    _countdown = 60;
-    _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
-      if (_countdown > 0) {
-        setState(() {
-          _countdown--;
-        });
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
-  Future<void> _loadPendingEmail() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final pendingEmail = await authProvider.getPendingEmail();
-    if (pendingEmail != null) {
-      _emailController.text = pendingEmail;
-      setState(() {
-        authProvider.isOtpSent;
-      });
-    }
-  }
-
-  Future<void> _requestOtp() async {
-    if (_emailController.text.isEmpty || !_emailController.text.contains('@')) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Email harus valid')));
-      return;
-    }
+  Future<void> _sendOtp() async {
+    if (!_formKey.currentState!.validate()) return;
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await authProvider.requestOtp(_emailController.text);
-
-      // Navigate to verify OTP screen
-      Navigator.push(
+      await Provider.of<AuthProvider>(
         context,
-        MaterialPageRoute(
-          builder: (context) => VerifyOtpScreen(email: _emailController.text),
+        listen: false,
+      ).sendOtp(_emailController.text.trim());
+
+      setState(() {
+        _otpSent = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('OTP berhasil dikirim ke email'),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengirim OTP: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
     }
   }
 
   Future<void> _verifyOtp() async {
-    if (_otpController.text.length != 6) {
-      ScaffoldMessenger.of(
+    if (!_formKey.currentState!.validate()) return;
+
+    try {
+      await Provider.of<AuthProvider>(
         context,
-      ).showSnackBar(SnackBar(content: Text('OTP harus 6 digit')));
-      return;
-    }
+        listen: false,
+      ).verifyOtp(_emailController.text.trim(), _otpController.text.trim());
 
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final result = await authProvider.verifyOtp(
-        _emailController.text,
-        _otpController.text,
-      );
-
-      if (result['success']) {
-        _navigateBasedOnRole(result['role']);
-      }
+      // Navigation will be handled by main.dart based on role
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
       );
     }
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
-      if (googleUser != null) {
-        final GoogleSignInAuthentication googleAuth =
-            await googleUser.authentication;
-
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final result = await authProvider.googleMobileLogin({
-          'idToken': googleAuth.idToken,
-          'accessToken': googleAuth.accessToken,
-          'email': googleUser.email,
-          'name': googleUser.displayName,
-          'picture': googleUser.photoUrl,
-        });
-
-        if (result['success']) {
-          _navigateBasedOnRole(result['role']);
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Google login gagal: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _navigateBasedOnRole(String role) {
-    switch (role) {
-      case 'ADMIN':
-      case 'SUPER_ADMIN':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => AdminDashboardScreen(
-              token: Provider.of<AuthProvider>(context, listen: false).token!,
-            ),
-          ),
-        );
-        break;
-      case 'SATPAM':
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => SecurityDashboardScreen()),
-        );
-        break;
-      default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Role tidak dikenali: $role'),
-            backgroundColor: Colors.red,
-          ),
-        );
-    }
+  void _toggleOtpVisibility() {
+    setState(() {
+      _showPassword = !_showPassword;
+    });
   }
 
   @override
@@ -195,217 +78,263 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade900,
+              Colors.blue.shade700,
+              Colors.blue.shade500,
+            ],
+          ),
+        ),
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                Image.asset('assets/Logobiru.png', height: 100, width: 100),
-                SizedBox(height: 24),
-
-                // Title
-                Text(
-                  'WARGA KITA',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue[900],
-                  ),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Card(
+                elevation: 10,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                Text(
-                  'Admin & Security Dashboard',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                ),
-                SizedBox(height: 40),
-
-                // Email Input
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  enabled: !authProvider.isOtpSent,
-                ),
-                SizedBox(height: 16),
-
-                // OTP Input (muncul setelah OTP dikirim)
-                if (authProvider.isOtpSent) ...[
-                  TextField(
-                    controller: _otpController,
-                    decoration: InputDecoration(
-                      labelText: 'Kode OTP (6 digit)',
-                      prefixIcon: Icon(Icons.lock),
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      suffixIcon: _countdown > 0
-                          ? Padding(
-                              padding: EdgeInsets.all(12),
-                              child: Text('$_countdown s'),
-                            )
-                          : TextButton(
-                              onPressed: _requestOtp,
-                              child: Text('Kirim Ulang'),
-                            ),
-                    ),
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Masukkan 6 digit kode OTP yang dikirim ke email Anda',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  SizedBox(height: 24),
-                ],
-
-                // Buttons
-                if (authProvider.isLoading)
-                  CircularProgressIndicator()
-                else if (!authProvider.isOtpSent) ...[
-                  ElevatedButton(
-                    onPressed: _requestOtp,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
-                      backgroundColor: Colors.blue[900],
-                    ),
-                    child: Text(
-                      'Minta Kode OTP',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-
-                  // Divider untuk Google Login
-                  if (_showGoogleLogin) ...[
-                    Row(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(child: Divider()),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Text('atau'),
+                        // Logo and Title
+                        Column(
+                          children: [
+                            Icon(
+                              Icons.security,
+                              size: 80,
+                              color: Colors.blue.shade700,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'WARGA KITA',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Admin & Security Portal',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
                         ),
-                        Expanded(child: Divider()),
-                      ],
-                    ),
-                    SizedBox(height: 16),
+                        const SizedBox(height: 32),
 
-                    // Google Login Button
-                    OutlinedButton.icon(
-                      onPressed: _handleGoogleSignIn,
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: Size(double.infinity, 50),
-                        side: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      icon: Image.asset(
-                        'assets/googlelogo.png',
-                        height: 24,
-                        width: 24,
-                      ),
-                      label: Text(
-                        'Masuk dengan Google',
-                        style: TextStyle(color: Colors.grey[700]),
-                      ),
-                    ),
-                  ],
-                ] else
-                  ElevatedButton(
-                    onPressed: _verifyOtp,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
-                      backgroundColor: Colors.green,
-                    ),
-                    child: Text(
-                      'Verifikasi OTP',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-
-                SizedBox(height: 20),
-
-                // Info Box
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[100]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Colors.blue[800],
-                            size: 20,
+                        // Email Field
+                        TextFormField(
+                          controller: _emailController,
+                          decoration: InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Informasi Login',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue[800],
-                              fontSize: 14,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Email harus diisi';
+                            }
+                            if (!value.contains('@')) {
+                              return 'Email tidak valid';
+                            }
+                            return null;
+                          },
+                          readOnly: _otpSent,
+                        ),
+                        const SizedBox(height: 20),
+
+                        // OTP Field (only shown after OTP sent)
+                        if (_otpSent) ...[
+                          TextFormField(
+                            controller: _otpController,
+                            decoration: InputDecoration(
+                              labelText: 'Kode OTP',
+                              prefixIcon: Icon(Icons.lock),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _showPassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
+                                onPressed: _toggleOtpVisibility,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                            ),
+                            obscureText: !_showPassword,
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'OTP harus diisi';
+                              }
+                              if (value.length != 6) {
+                                return 'OTP harus 6 digit';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.info, size: 16, color: Colors.blue),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'OTP telah dikirim ke email Anda. Berlaku 5 menit.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        // Error Message
+                        if (authProvider.error != null)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.error, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    authProvider.error!,
+                                    style: TextStyle(
+                                      color: Colors.red.shade800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        const SizedBox(height: 24),
+
+                        // Buttons
+                        if (!_otpSent)
+                          ElevatedButton(
+                            onPressed: authProvider.isLoading ? null : _sendOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade700,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: authProvider.isLoading
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    'Kirim OTP',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        if (_otpSent) ...[
+                          ElevatedButton(
+                            onPressed: authProvider.isLoading
+                                ? null
+                                : _verifyOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: authProvider.isLoading
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    'Verifikasi OTP',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _otpSent = false;
+                                _otpController.clear();
+                              });
+                            },
+                            child: Text(
+                              'Ganti Email',
+                              style: TextStyle(color: Colors.blue.shade700),
                             ),
                           ),
                         ],
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        '• Hanya untuk Admin, Super Admin, dan Satpam\n'
-                        '• OTP akan dikirim ke email terdaftar\n'
-                        '• OTP berlaku 5 menit\n'
-                        '• Dashboard berbeda untuk setiap role\n'
-                        '• Untuk Satpam: gunakan email yang terdaftar di sistem security',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[700],
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
 
-                // Error Message
-                if (authProvider.error != null) ...[
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red, size: 18),
-                        SizedBox(width: 8),
-                        Expanded(
+                        const SizedBox(height: 16),
+
+                        // Info Text
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           child: Text(
-                            authProvider.error!,
+                            'Hanya untuk ADMIN, SUPER_ADMIN, dan SECURITY',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.red[700],
+                              color: Colors.grey.shade600,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
         ),

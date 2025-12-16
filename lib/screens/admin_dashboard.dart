@@ -1,12 +1,13 @@
-// screens/admin_dashboard_screen.dart - PERBAIKAN OVERFLOW + FITUR NOTIFIKASI
+// screens/admin_dashboard_screen.dart - DENGAN FITUR LOGOUT
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wargaapp_admin/models/auth_response.dart';
 import '../providers/admin_provider.dart';
+import '../providers/auth_provider.dart'; // IMPORT AUTH PROVIDER
 
 class AdminDashboardScreen extends StatefulWidget {
-  final String token;
-
-  const AdminDashboardScreen({super.key, required this.token});
+  // HAPUS token parameter karena sekarang menggunakan auth provider
+  const AdminDashboardScreen({super.key, required String token});
 
   @override
   _AdminDashboardScreenState createState() => _AdminDashboardScreenState();
@@ -42,110 +43,467 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             SizedBox(height: 16),
             _buildTabMenu(),
             SizedBox(height: 16),
-            Expanded(
-              // PASTIKAN INI ADA - Ini yang memperbaiki overflow
-              child: _buildContent(),
-            ),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
     );
   }
 
-  // --------------------- HEADER ----------------------
+  // --------------------- HEADER dengan LOGOUT ----------------------
   Widget _buildHeader() {
-    return Consumer<AdminProvider>(
-      builder: (context, admin, child) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ), // Reduced vertical padding
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF1E88E5), Color(0xFF1976D2)],
-            ),
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 8,
-                offset: Offset(0, 2),
+    return Consumer<AuthProvider>(
+      // Gunakan AuthProvider untuk mendapatkan info user
+      builder: (context, auth, child) {
+        return Consumer<AdminProvider>(
+          builder: (context, admin, child) {
+            final user = auth.user;
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF1E88E5), Color(0xFF1976D2)],
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, // IMPORTANT: Prevent overflow
-            children: [
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: EdgeInsets.all(6), // Reduced padding
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Image.asset(
-                          'assets/Vector.png',
-                          width: 28, // Reduced size
-                          color: Colors.white,
-                        ),
+                      // Logo dan Nama App
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Image.asset(
+                              'assets/Vector.png',
+                              width: 28,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            "WARGA KITA",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 8), // Reduced spacing
-                      Text(
-                        "WARGA KITA",
-                        style: TextStyle(
-                          fontSize: 16, // Reduced font size
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
+                      Spacer(),
+
+                      // User Profile dengan Dropdown Menu
+                      _buildUserProfileDropdown(auth, user),
                     ],
                   ),
-                  Spacer(),
-                  _buildNotificationButton(),
+
+                  SizedBox(height: 16),
+
+                  // Greeting dengan nama user
+                  Text(
+                    "Hai ${user?.name.split(' ').first ?? 'Admin'}!",
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  SizedBox(height: 6),
+
+                  Text(
+                    "Mari pantau perkembangan warga hari ini",
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+
+                  // Tampilkan status auto-refresh di header
+                  SizedBox(height: 8),
+                  _buildAutoRefreshStatus(admin),
                 ],
               ),
-
-              SizedBox(height: 16), // Reduced spacing
-
-              Text(
-                "Hai Admin!!",
-                style: TextStyle(
-                  fontSize: 20, // Reduced font size
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              SizedBox(height: 6), // Reduced spacing
-
-              Text(
-                "Mari pantau perkembangan warga hari ini",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ), // Reduced font size
-              ),
-
-              // Tampilkan status auto-refresh di header
-              SizedBox(height: 8),
-              _buildAutoRefreshStatus(admin),
-            ],
-          ),
+            );
+          },
         );
       },
     );
+  }
+
+  // Widget untuk dropdown menu user profile
+  Widget _buildUserProfileDropdown(AuthProvider auth, User? user) {
+    return PopupMenuButton<String>(
+      icon: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.person_outline, color: Colors.white, size: 20),
+      ),
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        // User info
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                user?.name ?? 'Admin',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                user?.email ?? '-',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              SizedBox(height: 4),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _getRoleColor(user?.role),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  user?.role ?? 'ADMIN',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        PopupMenuDivider(),
+
+        // Menu items
+        PopupMenuItem<String>(
+          value: 'profile',
+          child: Row(
+            children: [
+              Icon(Icons.account_circle_outlined, size: 18),
+              SizedBox(width: 10),
+              Text('Profil Saya'),
+            ],
+          ),
+        ),
+
+        PopupMenuItem<String>(
+          value: 'settings',
+          child: Row(
+            children: [
+              Icon(Icons.settings_outlined, size: 18),
+              SizedBox(width: 10),
+              Text('Pengaturan'),
+            ],
+          ),
+        ),
+
+        PopupMenuItem<String>(
+          value: 'help',
+          child: Row(
+            children: [
+              Icon(Icons.help_outline, size: 18),
+              SizedBox(width: 10),
+              Text('Bantuan'),
+            ],
+          ),
+        ),
+
+        PopupMenuDivider(),
+
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              Icon(Icons.logout_outlined, size: 18, color: Colors.red),
+              SizedBox(width: 10),
+              Text('Keluar', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+      ],
+      onSelected: (String value) {
+        _handleUserMenuSelection(value, auth);
+      },
+    );
+  }
+
+  Color _getRoleColor(String? role) {
+    switch (role?.toUpperCase()) {
+      case 'SUPER_ADMIN':
+        return Colors.purple.shade700;
+      case 'ADMIN':
+        return Colors.blue.shade700;
+      case 'SECURITY':
+        return Colors.green.shade700;
+      default:
+        return Colors.grey.shade700;
+    }
+  }
+
+  void _handleUserMenuSelection(String value, AuthProvider auth) {
+    switch (value) {
+      case 'profile':
+        _showProfileDialog(auth.user);
+        break;
+      case 'settings':
+        _showSettingsBottomSheet(context);
+        break;
+      case 'help':
+        _showHelpDialog();
+        break;
+      case 'logout':
+        _showLogoutConfirmation(auth);
+        break;
+    }
+  }
+
+  void _showProfileDialog(User? user) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Profil Saya'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: CircleAvatar(
+                  backgroundColor: Color(0xFF1E88E5),
+                  radius: 40,
+                  child: Icon(Icons.person, size: 40, color: Colors.white),
+                ),
+              ),
+              SizedBox(height: 16),
+              _profileInfoRow('Nama', user?.name ?? '-'),
+              _profileInfoRow('Email', user?.email ?? '-'),
+              _profileInfoRow('Role', user?.role ?? '-'),
+              _profileInfoRow('ID', user?.id.toString() ?? '-'),
+              if (user?.createdAt != null)
+                _profileInfoRow(
+                  'Bergabung',
+                  '${user!.createdAt!.day}/${user.createdAt!.month}/${user.createdAt!.year}',
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(value, style: TextStyle(color: Colors.black87)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: Color(0xFF1E88E5)),
+            SizedBox(width: 8),
+            Text('Bantuan & Dukungan'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Halaman Bantuan',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 12),
+              _helpItem(
+                icon: Icons.phone,
+                title: 'Hubungi Kami',
+                subtitle: '021-1234-5678',
+              ),
+              _helpItem(
+                icon: Icons.email,
+                title: 'Email Dukungan',
+                subtitle: 'support@wargakita.com',
+              ),
+              _helpItem(
+                icon: Icons.chat,
+                title: 'Live Chat',
+                subtitle: 'Tersedia 24/7',
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Panduan Penggunaan',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '1. Dashboard menampilkan statistik utama\n'
+                '2. Gunakan tab untuk filter data\n'
+                '3. Klik kartu untuk navigasi ke halaman detail\n'
+                '4. Notifikasi menunjukkan update terbaru',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Tutup'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Panduan telah dikirim ke email Anda'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: Text('Dapatkan Panduan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helpItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: Color(0xFF1E88E5)),
+      title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(subtitle),
+    );
+  }
+
+  void _showLogoutConfirmation(AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.logout_outlined, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Konfirmasi Keluar'),
+          ],
+        ),
+        content: Text('Apakah Anda yakin ingin keluar dari akun ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performLogout(auth);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Keluar' , style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performLogout(AuthProvider auth) async {
+    try {
+      // Tampilkan loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(child: CircularProgressIndicator()),
+      );
+
+      // Logout dari auth provider
+      await auth.logout();
+
+      // Tutup loading dialog
+      Navigator.pop(context);
+
+      // Tampilkan konfirmasi logout berhasil
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Berhasil keluar'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Navigation akan di-handle oleh main.dart
+      // AuthProvider akan memicu rebuild dan mengarahkan ke login screen
+    } catch (e) {
+      Navigator.pop(context); // Tutup loading dialog jika error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal keluar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // Widget untuk menampilkan status auto-refresh
@@ -153,10 +511,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 6,
-            vertical: 3,
-          ), // Reduced padding
+          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(10),
@@ -165,33 +520,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               Icon(
                 admin.isAutoRefreshEnabled ? Icons.autorenew : Icons.pause,
-                size: 10, // Reduced size
+                size: 10,
                 color: Colors.white70,
               ),
-              SizedBox(width: 3), // Reduced spacing
+              SizedBox(width: 3),
               Text(
                 admin.isAutoRefreshEnabled
                     ? "Auto-refresh ON"
                     : "Auto-refresh OFF",
                 style: TextStyle(
                   color: Colors.white70,
-                  fontSize: 9, // Reduced font size
+                  fontSize: 9,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
-        SizedBox(width: 6), // Reduced spacing
+        SizedBox(width: 6),
         if (admin.isAutoRefreshEnabled)
           Expanded(
-            // Added Expanded to prevent text overflow
             child: Text(
               "Update: ${_formatTime(admin.lastUpdate)}",
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 9, // Reduced font size
-              ),
+              style: TextStyle(color: Colors.white70, fontSize: 9),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -203,245 +554,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
-  // --------------------- NOTIFICATION BUTTON ----------------------
-  Widget _buildNotificationButton() {
-    return Consumer<AdminProvider>(
-      builder: (context, admin, child) {
-        final unreadCount = admin.unreadNotifications;
 
-        return Stack(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8), // Reduced padding
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                onPressed: () {
-                  _showNotifications(context, admin);
-                },
-                icon: Icon(
-                  Icons.notifications_none,
-                  color: Colors.white,
-                  size: 20, // Reduced size
-                ),
-                padding: EdgeInsets.zero,
-                constraints: BoxConstraints(),
-              ),
-            ),
-            if (unreadCount > 0)
-              Positioned(
-                top: 6, // Adjusted position
-                right: 6, // Adjusted position
-                child: Container(
-                  padding: EdgeInsets.all(1), // Reduced padding
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  constraints: BoxConstraints(
-                    minWidth: 14,
-                    minHeight: 14,
-                  ), // Reduced size
-                  child: Text(
-                    unreadCount > 9 ? '9+' : unreadCount.toString(),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 7, // Reduced font size
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
 
-  void _showNotifications(BuildContext context, AdminProvider admin) {
-    final notifications = admin.notifications;
 
-    // MARK ALL NOTIFICATIONS AS READ WHEN OPENED
-    admin.markAllNotificationsAsRead();
-
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: EdgeInsets.all(16), // Reduced padding
-          height: MediaQuery.of(context).size.height * 0.7, // Reduced height
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    "Notifikasi",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ), // Reduced font size
-                  ),
-                  Spacer(),
-                  if (admin.unreadNotifications > 0)
-                    TextButton(
-                      onPressed: () {
-                        admin.markAllNotificationsAsRead();
-                        Navigator.pop(context);
-                      },
-                      child: Text(
-                        "Tandai semua dibaca",
-                        style: TextStyle(
-                          color: Color(0xFF1E88E5),
-                          fontSize: 11, // Reduced font size
-                        ),
-                      ),
-                    ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close, size: 18), // Reduced size
-                    padding: EdgeInsets.zero,
-                  ),
-                ],
-              ),
-              SizedBox(height: 12), // Reduced spacing
-              Expanded(
-                child: notifications.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.notifications_off_outlined,
-                              color: Colors.grey.shade400,
-                              size: 40, // Reduced size
-                            ),
-                            SizedBox(height: 8), // Reduced spacing
-                            Text(
-                              "Tidak ada notifikasi",
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                              ), // Reduced font size
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: notifications.length,
-                        itemBuilder: (context, index) {
-                          final notification = notifications[index];
-                          return _notificationItem(notification, admin);
-                        },
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _notificationItem(
-    Map<String, dynamic> notification,
-    AdminProvider admin,
-  ) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 8), // Reduced margin
-      padding: EdgeInsets.all(12), // Reduced padding
-      decoration: BoxDecoration(
-        color: notification['isRead'] ? Colors.grey.shade50 : Color(0xFFE3F2FD),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: notification['isRead']
-              ? Colors.grey.shade200
-              : Color(0xFF1E88E5).withOpacity(0.3),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _getNotificationIcon(notification['type']),
-            color: notification['isRead']
-                ? Colors.grey.shade400
-                : Color(0xFF1E88E5),
-            size: 18, // Reduced size
-          ),
-          SizedBox(width: 10), // Reduced spacing
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  notification['title'],
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13, // Reduced font size
-                    color: notification['isRead']
-                        ? Colors.grey.shade600
-                        : Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 3), // Reduced spacing
-                Text(
-                  notification['message'],
-                  style: TextStyle(
-                    fontSize: 11, // Reduced font size
-                    color: notification['isRead']
-                        ? Colors.grey.shade500
-                        : Colors.black54,
-                  ),
-                ),
-                SizedBox(height: 3), // Reduced spacing
-                Text(
-                  notification['time'],
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.grey.shade400,
-                  ), // Reduced font size
-                ),
-              ],
-            ),
-          ),
-          if (!notification['isRead'])
-            IconButton(
-              onPressed: () => admin.markNotificationAsRead(notification['id']),
-              icon: Icon(
-                Icons.check_circle_outline,
-                size: 16, // Reduced size
-                color: Color(0xFF1E88E5),
-              ),
-              padding: EdgeInsets.zero,
-            ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getNotificationIcon(String type) {
-    switch (type) {
-      case 'report':
-        return Icons.report_problem_outlined;
-      case 'emergency':
-        return Icons.warning_amber_outlined;
-      case 'announcement':
-        return Icons.campaign_outlined;
-      case 'user':
-        return Icons.person_outline;
-      case 'stats':
-        return Icons.analytics_outlined;
-      default:
-        return Icons.notifications_none;
-    }
-  }
 
   // --------------------- TAB MENU ----------------------
   Widget _buildTabMenu() {
@@ -452,14 +567,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     ];
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16), // Reduced padding
-      height: 40, // Reduced height
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      height: 40,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: tabLabels.length,
         itemBuilder: (context, index) {
           return Padding(
-            padding: EdgeInsets.only(right: 8), // Reduced spacing
+            padding: EdgeInsets.only(right: 8),
             child: _tab(tabLabels[index], index),
           );
         },
@@ -473,10 +588,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       onTap: () => setState(() => _selectedTab = index),
       child: AnimatedContainer(
         duration: Duration(milliseconds: 300),
-        padding: EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ), // Reduced padding
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? Color(0xFF1E88E5) : Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -505,7 +617,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           style: TextStyle(
             color: selected ? Colors.white : Colors.black54,
             fontWeight: FontWeight.w600,
-            fontSize: 12, // Reduced font size
+            fontSize: 12,
           ),
         ),
       ),
@@ -532,21 +644,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           backgroundColor: Colors.white,
           child: SingleChildScrollView(
             physics: AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.all(12), // Reduced padding
+            padding: EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min, // IMPORTANT: Prevent overflow
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Tampilkan info last updated
                 _buildLastUpdatedInfo(admin),
                 SizedBox(height: 12),
-
-                // Stat Cards Grid
                 _buildStatsGrid(stats, admin),
-
                 SizedBox(height: 16),
-
-                // Quick Actions Section
                 _buildQuickActions(),
               ],
             ),

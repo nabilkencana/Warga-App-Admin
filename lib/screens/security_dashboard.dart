@@ -1,645 +1,1194 @@
-// lib/screens/security_dashboard.dart
-import 'dart:async';
+// screens/security_dashboard.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wargaapp_admin/providers/auth_provider.dart';
-import 'package:wargaapp_admin/providers/security_provider.dart';
-import 'package:wargaapp_admin/screens/login_screen.dart';
-import 'package:wargaapp_admin/screens/security_emergencies_screen.dart';
-import 'package:wargaapp_admin/screens/security_incidents_screen.dart';
-import 'package:wargaapp_admin/screens/security_patrol_screen.dart';
-import 'package:wargaapp_admin/screens/security_profile_screen.dart';
+import 'package:http/http.dart' as http;
+import '../providers/auth_provider.dart';
+import '../config/api_config.dart';
 
-
-class SecurityDashboardScreen extends StatefulWidget {
-  const SecurityDashboardScreen({Key? key}) : super(key: key);
+class SecurityDashboard extends StatefulWidget {
+  const SecurityDashboard({Key? key}) : super(key: key);
 
   @override
-  _SecurityDashboardScreenState createState() =>
-      _SecurityDashboardScreenState();
+  State<SecurityDashboard> createState() => _SecurityDashboardState();
 }
 
-class _SecurityDashboardScreenState extends State<SecurityDashboardScreen> {
-  int _selectedIndex = 0;
-  Timer? _locationTimer;
-  Timer? _emergencyTimer;
-
-  static final List<Widget> _widgetOptions = [
-    SecurityEmergenciesScreen(),
-    SecurityPatrolScreen(),
-    SecurityIncidentsScreen(),
-    SecurityProfileScreen(),
-  ];
+class _SecurityDashboardState extends State<SecurityDashboard> {
+  bool _isLoading = true;
+  List<dynamic> _emergencies = [];
+  List<dynamic> _recentLogs = [];
+  int _assignedEmergencies = 0;
+  Map<String, dynamic>? _securityInfo;
+  Map<String, dynamic>? _stats;
 
   @override
   void initState() {
     super.initState();
-    _initializeSecurity();
+
+    print('🚀 SecurityDashboard initialized');
+    print('📱 App base URL: ${ApiConfig.baseUrl}');
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      print('👤 User ID: ${authProvider.user?.id}');
+      print('🔑 Token available: ${authProvider.token != null}');
+      print('🎭 User role: ${authProvider.user?.role}');
+      print('🎭 Original role: ${authProvider.originalRole}');
+    });
+
+    _verifySecurityId(); // Verifikasi dulu
+    _loadDashboardData();
+    _startPeriodicUpdates();
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      print('🔄 Loading dashboard for User ID: $userId');
+
+      // Gunakan endpoint user-based
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/security/dashboard/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        final data = json.decode(response.body);
+        print('✅ Dashboard data loaded successfully');
+
+        setState(() {
+          _emergencies = data['emergencies'] ?? [];
+          _assignedEmergencies = data['assignedEmergencies'] ?? 0;
+          _securityInfo = data['securityInfo'];
+          _stats = data['stats'];
+          _isLoading = false;
+        });
+
+        await _loadRecentLogs();
+      } else {
+        print('❌ Failed to load dashboard: ${response.body}');
+        setState(() => _isLoading = false);
+      }
+    } catch (error) {
+      print('❌ Error loading dashboard: $error');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadRecentLogs() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) return;
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/security/logs/user/$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        final data = json.decode(response.body);
+        setState(() {
+          _recentLogs = List.from(data).take(5).toList();
+        });
+      }
+    } catch (error) {
+      print('Error loading logs: $error');
+    }
+  }
+
+  void _startPeriodicUpdates() {
+    // Refresh data every 30 seconds
+    Future.delayed(Duration(seconds: 30), () {
+      if (mounted) {
+        _loadDashboardData();
+        _startPeriodicUpdates();
+      }
+    });
+  }
+
+  Future<void> _checkIn() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) {
+        _showSnackbar('Token atau ID tidak valid', isError: true);
+        return;
+      }
+
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text('Check-in'),
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Memproses check-in...'),
+            ],
+          ),
+        ),
+      );
+
+      // Gunakan endpoint user-based
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/check-in/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'userId': userId, 'location': 'Posisi saat ini'}),
+      );
+
+      Navigator.pop(context);
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Berhasil check-in');
+        await _loadDashboardData();
+      } else {
+        final errorData = json.decode(response.body);
+        _showSnackbar(
+          'Gagal check-in: ${errorData['message'] ?? response.reasonPhrase}',
+          isError: true,
+        );
+      }
+    } catch (error) {
+      _showSnackbar('Gagal check-in: $error', isError: true);
+    }
+  }
+
+  // Tambahkan fungsi untuk verifikasi security ID
+  Future<void> _verifySecurityId() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) {
+        print('❌ No token or user ID');
+        return;
+      }
+
+      print('🔍 Verifying if user $userId is security...');
+
+      // Cek apakah user adalah security
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/security/user/$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      print('Verification response: ${response.statusCode}');
+      print('Verification body: ${response.body}');
+
+      if (response.statusCode.toString().startsWith('2')) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          print('✅ User is security with ID: ${data['data']['id']}');
+        } else {
+          print('❌ User is not security personnel');
+          _showSnackbar('Anda belum terdaftar sebagai security', isError: true);
+        }
+      } else if (response.statusCode == 404) {
+        print('❌ User not found in security database');
+        _showSnackbar('Anda belum terdaftar sebagai security', isError: true);
+      }
+    } catch (error) {
+      print('❌ Error verifying security: $error');
+    }
+  }
+
+  Future<void> _checkOut() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) {
+        _showSnackbar('Token atau ID tidak valid', isError: true);
+        return;
+      }
+
+      // Confirm dialog
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Check-out'),
+          content: Text('Apakah Anda yakin ingin check-out?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Ya, Check-out'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text('Check-out'),
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Memproses check-out...'),
+            ],
+          ),
+        ),
+      );
+
+      // Gunakan endpoint user-based
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/check-out/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'userId': userId}),
+      );
+
+      Navigator.pop(context);
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Berhasil check-out');
+        await _loadDashboardData();
+      } else {
+        final errorData = json.decode(response.body);
+        _showSnackbar(
+          'Gagal check-out: ${errorData['message'] ?? response.reasonPhrase}',
+          isError: true,
+        );
+      }
+    } catch (error) {
+      _showSnackbar('Gagal check-out: $error', isError: true);
+    }
+  }
+
+  Future<void> _updateLocation() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) return;
+
+      // Simulate getting location
+      const latitude = '-6.2088';
+      const longitude = '106.8456';
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/update-location/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'userId': userId,
+          'latitude': latitude,
+          'longitude': longitude,
+        }),
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Lokasi berhasil diperbarui');
+      }
+    } catch (error) {
+      _showSnackbar('Gagal update lokasi: $error', isError: true);
+    }
+  }
+
+  Future<void> _startPatrol() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/patrol/start/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'userId': userId}),
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Patroli dimulai');
+        _loadDashboardData();
+      }
+    } catch (error) {
+      _showSnackbar('Gagal mulai patroli: $error', isError: true);
+    }
+  }
+
+  Future<void> _endPatrol() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/patrol/end/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'userId': userId}),
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Patroli selesai');
+        _loadDashboardData();
+      }
+    } catch (error) {
+      _showSnackbar('Gagal mengakhiri patroli: $error', isError: true);
+    }
+  }
+
+  Future<void> _reportIncident(String details) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userid = authProvider.user?.id;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/incident/report/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'userId': userid, 'details': details}),
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Laporan insiden berhasil dikirim');
+        _loadRecentLogs();
+      }
+    } catch (error) {
+      _showSnackbar('Gagal mengirim laporan: $error', isError: true);
+    }
+  }
+
+  Future<void> _acceptEmergency(int emergencyId) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/security/emergency/accept/user'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'userId': userId,
+          'emergencyId': emergencyId,
+        }),
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        _showSnackbar('Emergency diterima');
+        _loadDashboardData();
+      }
+    } catch (error) {
+      _showSnackbar('Gagal menerima emergency: $error', isError: true);
+    }
+  }
+
+  Widget _buildLoadingScreen() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 20),
+          Text('Memuat dashboard...'),
+        ],
+      ),
+    );
+  }
+
+  String _getShiftName(String? shift) {
+    switch (shift) {
+      case 'MORNING':
+        return 'Pagi';
+      case 'AFTERNOON':
+        return 'Siang';
+      case 'NIGHT':
+        return 'Malam';
+      case 'FLEXIBLE':
+        return 'Fleksibel';
+      default:
+        return '-';
+    }
+  }
+
+  IconData _getShiftIcon(String? shift) {
+    switch (shift) {
+      case 'MORNING':
+        return Icons.wb_sunny;
+      case 'AFTERNOON':
+        return Icons.sunny;
+      case 'NIGHT':
+        return Icons.nightlight;
+      case 'FLEXIBLE':
+        return Icons.schedule;
+      default:
+        return Icons.access_time;
+    }
   }
 
   @override
-  void dispose() {
-    _locationTimer?.cancel();
-    _emergencyTimer?.cancel();
-    super.dispose();
+  Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.user;
+
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            authProvider.originalRole == 'SATPAM'
+                ? 'Satpam Dashboard'
+                : 'Security Dashboard',
+          ),
+          backgroundColor: Colors.green.shade800,
+        ),
+        body: _buildLoadingScreen(),
+      );
+    }
+
+    final isOnDuty = _securityInfo?['isOnDuty'] ?? false;
+    final shift = _securityInfo?['shift'];
+    final emergencyCount = _securityInfo?['emergencyCount'] ?? 0;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          authProvider.originalRole == 'SATPAM'
+              ? 'Satpam Dashboard'
+              : 'Security Dashboard',
+        ),
+        backgroundColor: Colors.green.shade800,
+        actions: [
+          IconButton(icon: Icon(Icons.refresh), onPressed: _loadDashboardData),
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await authProvider.logout();
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header with Security Info
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.green.shade100,
+                          child: Icon(
+                            authProvider.originalRole == 'SATPAM'
+                                ? Icons.security
+                                : Icons.person_pin_circle,
+                            color: Colors.green.shade800,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _securityInfo?['nama'] ??
+                                    user?.name ??
+                                    'Security',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                authProvider.originalRole == 'SATPAM'
+                                    ? 'ID: SATPAM-${user?.id.toString().padLeft(4, '0')}'
+                                    : 'ID: SEC-${user?.id.toString().padLeft(4, '0')}',
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                              Text(
+                                'Shift: ${_getShiftName(shift)}',
+                                style: TextStyle(
+                                  color: Colors.blue.shade600,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildStatusCard(
+                          icon: Icons.access_time,
+                          label: 'Status',
+                          value: isOnDuty ? 'On Duty' : 'Off Duty',
+                          color: isOnDuty ? Colors.green : Colors.orange,
+                        ),
+                        _buildStatusCard(
+                          icon: Icons.emergency,
+                          label: 'Emergency',
+                          value: emergencyCount.toString(),
+                          color: Colors.red,
+                        ),
+                        _buildStatusCard(
+                          icon: _getShiftIcon(shift),
+                          label: 'Shift',
+                          value: _getShiftName(shift),
+                          color: Colors.blue,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Duty Control
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Kontrol Tugas',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: isOnDuty
+                                ? null
+                                : () {
+                                    _checkIn();
+                                  },
+                            icon: Icon(Icons.play_arrow),
+                            label: Text('Mulai Tugas'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: !isOnDuty
+                                ? null
+                                : () {
+                                    _checkOut();
+                                  },
+                            icon: Icon(Icons.stop),
+                            label: Text('Selesai'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: !isOnDuty
+                                ? null
+                                : () {
+                                    _startPatrol();
+                                  },
+                            icon: Icon(Icons.directions_walk),
+                            label: Text('Mulai Patroli'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: !isOnDuty
+                                ? null
+                                : () {
+                                    _endPatrol();
+                                  },
+                            icon: Icon(Icons.directions_walk),
+                            label: Text('Akhiri Patroli'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Emergency Section
+            if (_emergencies.isNotEmpty)
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Emergency Aktif (${_emergencies.length})',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Chip(
+                            label: Text('Ditugaskan: $_assignedEmergencies'),
+                            backgroundColor: Colors.red.shade100,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ..._emergencies.map((emergency) {
+                        return _buildEmergencyCard(emergency);
+                      }).toList(),
+                    ],
+                  ),
+                ),
+              ),
+            if (_emergencies.isNotEmpty) const SizedBox(height: 20),
+
+            // Quick Actions
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Aksi Cepat',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.5,
+                      children: [
+                        _buildQuickAction(
+                          icon: Icons.location_on,
+                          label: 'Update Lokasi',
+                          color: Colors.blue.shade700,
+                          onTap: _updateLocation,
+                        ),
+                        _buildQuickAction(
+                          icon: Icons.assignment,
+                          label: 'Laporan Insiden',
+                          color: Colors.orange.shade700,
+                          onTap: () => _showReportDialog(),
+                        ),
+                        _buildQuickAction(
+                          icon: Icons.emergency,
+                          label: 'Emergency',
+                          color: Colors.red.shade700,
+                          onTap: () => _showEmergencyDialog(),
+                        ),
+                        _buildQuickAction(
+                          icon: Icons.analytics,
+                          label: 'Statistik',
+                          color: Colors.purple.shade700,
+                          onTap: () => _showStatsDialog(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Recent Activities
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Aktivitas Terbaru',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.refresh),
+                          onPressed: () async {
+                            final authProvider = Provider.of<AuthProvider>(
+                              context,
+                              listen: false,
+                            );
+                            final token = authProvider.token;
+                            final userId = authProvider.user?.id;
+
+                            if (token != null && userId != null) {
+                              final securityResponse = await http.get(
+                                Uri.parse(
+                                  '${ApiConfig.baseUrl}/security/user/$userId',
+                                ),
+                                headers: {
+                                  'Authorization': 'Bearer $token',
+                                  'Content-Type': 'application/json',
+                                },
+                              );
+
+                              if (securityResponse.statusCode.toString().startsWith('2')) {
+                                json.decode(
+                                  securityResponse.body,
+                                );
+
+                                await _loadRecentLogs();
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_recentLogs.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16.0),
+                        child: Text(
+                          'Tidak ada aktivitas terbaru',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      )
+                    else
+                      ..._recentLogs.map((log) {
+                        return _buildActivityItem(log);
+                      }).toList(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  void _initializeSecurity() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authProvider = context.read<AuthProvider>();
-      final securityProvider = context.read<SecurityProvider>();
+  Widget _buildEmergencyCard(Map<String, dynamic> emergency) {
+    final type = emergency['type'] ?? 'UNKNOWN';
+    final severity = emergency['severity'] ?? 'MEDIUM';
+    final location = emergency['location'] ?? 'Lokasi tidak diketahui';
+    final createdAt = DateTime.parse(emergency['createdAt']).toLocal();
+    final responses = emergency['emergencyResponses'] ?? [];
 
-      // Initialize security data
-      securityProvider.initializeSecurity(authProvider.userId!);
+    Color severityColor = Colors.orange;
+    if (severity == 'HIGH') severityColor = Colors.red;
+    if (severity == 'LOW') severityColor = Colors.green;
 
-      // Start periodic location updates (every 30 seconds)
-      _locationTimer = Timer.periodic(Duration(seconds: 30), (timer) {
-        securityProvider.updateLocation();
-      });
-
-      // Start periodic emergency check (every 10 seconds)
-      _emergencyTimer = Timer.periodic(Duration(seconds: 10), (timer) {
-        securityProvider.checkNewEmergencies();
-      });
-    });
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: severityColor.withOpacity(0.1),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: severityColor,
+          child: Icon(Icons.warning, color: Colors.white, size: 20),
+        ),
+        title: Text(
+          'Emergency: $type',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(location),
+            Text(
+              '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        trailing: responses.isNotEmpty
+            ? Chip(
+                label: Text('Ditugaskan'),
+                backgroundColor: Colors.green.shade100,
+              )
+            : ElevatedButton(
+                onPressed: () => _acceptEmergency(emergency['id']),
+                child: Text('Terima'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+      ),
+    );
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  Widget _buildStatusCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 32),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 
-  Future<void> _handleLogout() async {
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 2,
+      color: color.withOpacity(0.1),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(Map<String, dynamic> log) {
+    final action = log['action'] ?? 'UNKNOWN';
+    final details = log['details'] ?? 'Tidak ada detail';
+    final timestamp = DateTime.parse(log['timestamp']).toLocal();
+    final timeStr =
+        '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+
+    IconData icon = Icons.info;
+    Color color = Colors.blue;
+
+    switch (action) {
+      case 'CHECK_IN':
+        icon = Icons.play_arrow;
+        color = Colors.green;
+        break;
+      case 'CHECK_OUT':
+        icon = Icons.stop;
+        color = Colors.red;
+        break;
+      case 'PATROL_START':
+        icon = Icons.directions_walk;
+        color = Colors.blue;
+        break;
+      case 'PATROL_END':
+        icon = Icons.directions_walk;
+        color = Colors.orange;
+        break;
+      case 'LOCATION_UPDATE':
+        icon = Icons.location_on;
+        color = Colors.purple;
+        break;
+      case 'INCIDENT_REPORT':
+        icon = Icons.report;
+        color = Colors.orange;
+        break;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withOpacity(0.1),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  action.replaceAll('_', ' '),
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  details,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            timeStr,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
+  }
+
+  void _showEmergencyDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Logout'),
-        content: Text('Apakah Anda yakin ingin keluar?'),
+        title: Text('Emergency Response'),
+        content: Text('Pilih aksi emergency:'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(context);
-              final authProvider = context.read<AuthProvider>();
-              final securityProvider = context.read<SecurityProvider>();
-
-              // Check out dari duty jika sedang bertugas
-              if (securityProvider.isOnDuty) {
-                await securityProvider.checkOut();
-              }
-
-              // Logout
-              await authProvider.logout();
-
-              // Navigate ke login screen
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => LoginScreen()),
-                (route) => false,
-              );
+              // Show emergency list
+              _showEmergencyList();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Logout'),
+            child: Text('Lihat Daftar'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFloatingActionButton() {
-    if (_selectedIndex == 0) {
-      // Emergencies tab
-      return FloatingActionButton.extended(
-        onPressed: () {
-          context.read<SecurityProvider>().refreshEmergencies();
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Emergencies refreshed')));
-        },
-        icon: Icon(Icons.refresh),
-        label: Text('Refresh'),
-        backgroundColor: Colors.blue[800],
-      );
-    } else if (_selectedIndex == 1) {
-      // Patrol tab
-      return Consumer<SecurityProvider>(
-        builder: (context, provider, child) {
-          return FloatingActionButton.extended(
-            onPressed: () {
-              if (!provider.isOnDuty) {
-                provider.checkIn();
-              } else if (!provider.isPatrolling) {
-                provider.startPatrol();
-              } else {
-                provider.endPatrol();
-              }
-            },
-            icon: Icon(_getPatrolIcon(provider)),
-            label: Text(_getPatrolText(provider)),
-            backgroundColor: _getPatrolColor(provider),
-          );
-        },
-      );
-    }
-    return SizedBox.shrink();
-  }
-
-  IconData _getPatrolIcon(SecurityProvider provider) {
-    if (!provider.isOnDuty) return Icons.login;
-    if (!provider.isPatrolling) return Icons.directions_walk;
-    return Icons.stop;
-  }
-
-  String _getPatrolText(SecurityProvider provider) {
-    if (!provider.isOnDuty) return 'Check In';
-    if (!provider.isPatrolling) return 'Start Patrol';
-    return 'End Patrol';
-  }
-
-  Color _getPatrolColor(SecurityProvider provider) {
-    if (!provider.isOnDuty) return Colors.green;
-    if (!provider.isPatrolling) return Colors.blue;
-    return Colors.orange;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final securityProvider = Provider.of<SecurityProvider>(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
+  void _showEmergencyList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
           children: [
-            Icon(Icons.security, size: 24),
-            SizedBox(width: 8),
-            Text('Security Dashboard'),
-            SizedBox(width: 8),
-            if (securityProvider.isOnDuty) ...[
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.circle, size: 8, color: Colors.white),
-                    SizedBox(width: 4),
-                    Text(
-                      'ON DUTY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+            Text(
+              'Emergency Aktif',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _emergencies.isEmpty
+                  ? Center(child: Text('Tidak ada emergency aktif'))
+                  : ListView.builder(
+                      itemCount: _emergencies.length,
+                      itemBuilder: (context, index) {
+                        final emergency = _emergencies[index];
+                        return _buildEmergencyCard(emergency);
+                      },
                     ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ],
         ),
-        backgroundColor: Colors.green[900],
-        actions: [
-          // Emergency Alert Badge
-          Stack(
-            children: [
-              IconButton(
-                icon: Icon(Icons.warning),
-                onPressed: () {
-                  setState(() {
-                    _selectedIndex = 0;
-                  });
-                },
-              ),
-              if (securityProvider.pendingEmergencyCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      '${securityProvider.pendingEmergencyCount}',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          // Profile Menu
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'profile') {
-                setState(() {
-                  _selectedIndex = 3;
-                });
-              } else if (value == 'logout') {
-                _handleLogout();
-              }
-            },
-            itemBuilder: (BuildContext context) {
-              return [
-                PopupMenuItem<String>(
-                  value: 'profile',
-                  child: Row(
-                    children: [
-                      Icon(Icons.person, size: 20),
-                      SizedBox(width: 8),
-                      Text('Profile'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout, size: 20, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Logout', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ];
-            },
-            child: Padding(
-              padding: EdgeInsets.only(right: 8),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white,
-                child: Text(
-                  authProvider.userName?.substring(0, 1).toUpperCase() ?? 'S',
-                  style: TextStyle(
-                    color: Colors.green[900],
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          _widgetOptions[_selectedIndex],
-
-          // Emergency Alert Overlay
-          if (securityProvider.hasNewEmergencyAlert)
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: _buildEmergencyAlert(),
-            ),
-
-          // Status Bar
-          Positioned(
-            bottom: 70,
-            left: 16,
-            right: 16,
-            child: _buildStatusBar(securityProvider),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.warning),
-            label: 'Emergency',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.directions_walk),
-            label: 'Patrol',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt),
-            label: 'Incidents',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.green[900],
-        unselectedItemColor: Colors.grey[600],
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        type: BottomNavigationBarType.fixed,
-        onTap: _onItemTapped,
-      ),
-      floatingActionButton: _buildFloatingActionButton(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-    );
-  }
-
-  Widget _buildEmergencyAlert() {
-    return Consumer<SecurityProvider>(
-      builder: (context, provider, child) {
-        final emergency = provider.latestEmergency;
-        if (emergency == null) return SizedBox.shrink();
-
-        return GestureDetector(
-          onTap: () {
-            provider.clearEmergencyAlert();
-            // Navigate to emergency detail
-            _showEmergencyDetail(emergency);
-          },
-          child: Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _getEmergencyColor(emergency['severity']),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber, color: Colors.white, size: 30),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '🚨 NEW EMERGENCY ALERT',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        emergency['type'] ?? 'Emergency',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        emergency['location'] ?? 'Location unknown',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.close, color: Colors.white),
-                  onPressed: provider.clearEmergencyAlert,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatusBar(SecurityProvider provider) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Status',
-                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-              ),
-              SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(
-                    provider.isOnDuty ? Icons.circle : Icons.circle_outlined,
-                    size: 12,
-                    color: provider.isOnDuty ? Colors.green : Colors.grey,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    provider.isOnDuty ? 'On Duty' : 'Off Duty',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: provider.isOnDuty ? Colors.green : Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Patrol',
-                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-              ),
-              SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(
-                    provider.isPatrolling ? Icons.directions_walk : Icons.pause,
-                    size: 12,
-                    color: provider.isPatrolling ? Colors.blue : Colors.grey,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    provider.isPatrolling ? 'Active' : 'Inactive',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: provider.isPatrolling ? Colors.blue : Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Emergencies',
-                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-              ),
-              SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(Icons.warning, size: 12, color: Colors.orange),
-                  SizedBox(width: 4),
-                  Text(
-                    '${provider.pendingEmergencyCount} pending',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Location',
-                style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-              ),
-              SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(
-                    provider.isLocationEnabled
-                        ? Icons.location_on
-                        : Icons.location_off,
-                    size: 12,
-                    color: provider.isLocationEnabled
-                        ? Colors.blue
-                        : Colors.grey,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    provider.isLocationEnabled ? 'Active' : 'Off',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: provider.isLocationEnabled
-                          ? Colors.blue
-                          : Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
 
-  Color _getEmergencyColor(String severity) {
-    switch (severity) {
-      case 'CRITICAL':
-        return Colors.red;
-      case 'HIGH':
-        return Colors.orange;
-      case 'MEDIUM':
-        return Colors.yellow[700]!;
-      case 'LOW':
-        return Colors.blue;
-      default:
-        return Colors.orange;
-    }
-  }
+  void _showReportDialog() {
+    final textController = TextEditingController();
 
-  void _showEmergencyDetail(Map<String, dynamic> emergency) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Emergency Details'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              emergency['type'] ?? 'Emergency',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Location: ${emergency['location'] ?? 'Unknown'}',
-              style: TextStyle(color: Colors.grey[700]),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Severity: ${emergency['severity'] ?? 'MEDIUM'}',
-              style: TextStyle(
-                color: _getEmergencyColor(emergency['severity'] ?? 'MEDIUM'),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 4),
-            if (emergency['details'] != null)
-              Text('Details: ${emergency['details']}'),
-            SizedBox(height: 12),
-            Text(
-              'Reported: ${_formatDateTime(emergency['createdAt'])}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ],
+        title: Text('Buat Laporan Insiden'),
+        content: TextField(
+          controller: textController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: 'Masukkan detail insiden...',
+            border: OutlineInputBorder(),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
+            child: Text('Batal'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
-              context.read<SecurityProvider>().respondToEmergency(
-                emergency['id'],
-                emergency['type'] ?? 'Emergency',
-              );
+              if (textController.text.trim().isNotEmpty) {
+                _reportIncident(textController.text);
+                Navigator.pop(context);
+              }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: Text('Respond Now'),
+            child: Text('Kirim'),
           ),
         ],
       ),
     );
   }
 
-  String _formatDateTime(String dateTime) {
-    try {
-      final date = DateTime.parse(dateTime);
-      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return 'Just now';
-    }
+  void _showStatsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Statistik Performa'),
+        content: _stats == null
+            ? Text('Tidak ada data statistik')
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildStatItem(
+                    'Total Response',
+                    '${_stats?['totalResponses'] ?? 0}',
+                  ),
+                  _buildStatItem(
+                    'Response Rate',
+                    '${_stats?['completionRate'] ?? '0'}%',
+                  ),
+                  _buildStatItem(
+                    'Rata Response Time',
+                    '${_stats?['avgResponseTime'] ?? 0} detik',
+                  ),
+                  _buildStatItem(
+                    'Emergency Diselesaikan',
+                    '${_securityInfo?['emergencyCount'] ?? 0}',
+                  ),
+                ],
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(value, style: TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 }

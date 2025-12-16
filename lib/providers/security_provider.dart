@@ -34,7 +34,7 @@ class SecurityProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  final String baseUrl = 'https://wargakita.canadev.my.id/api';
+  final String baseUrl = 'https://wargakita.canadev.my.id';
 
   Future<void> initializeSecurity(int userId) async {
     _isLoading = true;

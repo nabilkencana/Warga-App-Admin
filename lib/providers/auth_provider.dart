@@ -1,149 +1,75 @@
-// lib/providers/auth_provider.dart
+// providers/auth_provider.dart
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+import '../models/auth_response.dart';
 
 class AuthProvider with ChangeNotifier {
+  User? _user;
   String? _token;
-  String? _userRole;
-  String? _userEmail;
-  String? _userName;
-  int? _userId;
   bool _isLoading = false;
   String? _error;
-  bool _isOtpSent = false;
+  String? _originalRole; // Simpan role asli dari backend
 
+  User? get user => _user;
   String? get token => _token;
-  String? get userRole => _userRole;
-  String? get userEmail => _userEmail;
-  String? get userName => _userName;
-  int? get userId => _userId;
+  bool get isAuthenticated => _token != null;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get isOtpSent => _isOtpSent;
+  String? get originalRole => _originalRole; // Getter untuk role asli
 
-  final String baseUrl = 'https://wargakita.canadev.my.id/auth';
+  final AuthService _authService = AuthService();
 
-  // Constructor untuk load token dari SharedPreferences
   AuthProvider() {
-    _loadToken();
+    _loadStoredData();
   }
 
-  Future<void> _loadToken() async {
+  // Update _loadStoredData untuk load original role
+  Future<void> _loadStoredData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _token = prefs.getString('token');
-      _userRole = prefs.getString('userRole');
-      _userEmail = prefs.getString('userEmail');
-      _userName = prefs.getString('userName');
-      _userId = prefs.getInt('userId');
+      final token = prefs.getString('token');
+      final userJson = prefs.getString('user');
+      final originalRole = prefs.getString('original_role');
 
+      if (token != null && userJson != null) {
+        _token = token;
+        final userMap = Map<String, dynamic>.from(jsonDecode(userJson));
+        _user = User.fromJson(userMap);
+        _originalRole = originalRole;
+        notifyListeners();
+      }
+    } catch (e) {
+      print('Error loading stored data: $e');
+    }
+  }
+
+  Future<void> _saveData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
       if (_token != null) {
-        print('Token loaded: ${_token!.substring(0, 20)}...');
-        print('User role: $_userRole');
+        await prefs.setString('token', _token!);
       }
-      notifyListeners();
+      if (_user != null) {
+        await prefs.setString('user', jsonEncode(_user!.toJson()));
+      }
+      if (_originalRole != null) {
+        await prefs.setString('original_role', _originalRole!);
+      }
     } catch (e) {
-      print('Error loading token: $e');
+      print('Error saving data: $e');
     }
   }
 
-  Future<void> _saveToken(
-    String token,
-    String role,
-    String email,
-    String name,
-    int id,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token);
-    await prefs.setString('userRole', role);
-    await prefs.setString('userEmail', email);
-    await prefs.setString('userName', name);
-    await prefs.setInt('userId', id);
-
-    _token = token;
-    _userRole = role;
-    _userEmail = email;
-    _userName = name;
-    _userId = id;
-  }
-
-  Future<void> requestOtp(String email) async {
-    _isLoading = true;
-    _error = null;
-    _isOtpSent = false;
-    notifyListeners();
-
+  Future<void> sendOtp(String email) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/send-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode.toString().startsWith('2')) {
-        _isOtpSent = true;
-        _error = null;
-        // Simpan email untuk verifikasi nanti
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('pendingEmail', email);
-      } else {
-        throw Exception(data['message'] ?? 'Gagal mengirim OTP');
-      }
-    } catch (e) {
-      _error = e.toString();
-      _isOtpSent = false;
-      rethrow;
-    } finally {
-      _isLoading = false;
+      _isLoading = true;
+      _error = null;
       notifyListeners();
-    }
-  }
 
-  Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/verify-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'otp': otp}),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode.toString().startsWith('2')) {
-        // Validasi bahwa user adalah admin/super admin/satpam
-        final userRole = data['user']['role'];
-
-        // Hanya izinkan role tertentu untuk login ke dashboard
-        final allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'SATPAM'];
-        if (!allowedRoles.contains(userRole)) {
-          throw Exception(
-            'Anda tidak memiliki akses ke dashboard admin/security',
-          );
-        }
-
-        // Simpan token dan user data
-        await _saveToken(
-          data['access_token'],
-          userRole,
-          data['user']['email'],
-          data['user']['name'],
-          data['user']['id'],
-        );
-
-        _isOtpSent = false; // Reset OTP status
-        return {'success': true, 'role': userRole, 'user': data['user']};
-      } else {
-        throw Exception(data['message'] ?? 'OTP verification failed');
-      }
+      await _authService.sendOtp(email);
     } catch (e) {
       _error = e.toString();
       rethrow;
@@ -153,95 +79,61 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Google Login untuk mobile
-  Future<Map<String, dynamic>> googleMobileLogin(
-    Map<String, dynamic> googleData,
-  ) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
+  Future<void> verifyOtp(String email, String otp) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/google/mobile'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(googleData),
-      );
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
 
-      final data = jsonDecode(response.body);
+      final response = await _authService.verifyOtp(email, otp);
 
-      if (response.statusCode.toString().startsWith('2')) {
-        // Validasi role untuk dashboard access
-        final userRole = data['user']['role'];
-        final allowedRoles = ['ADMIN', 'SUPER_ADMIN', 'SATPAM'];
+      _user = response.user;
+      _token = response.accessToken;
+      _originalRole = _extractOriginalRole(response); // Simpan role asli
 
-        if (!allowedRoles.contains(userRole)) {
-          throw Exception(
-            'Anda tidak memiliki akses ke dashboard admin/security',
-          );
-        }
+      // Save to local storage
+      await _saveData();
 
-        // Simpan token
-        await _saveToken(
-          data['access_token'],
-          userRole,
-          data['user']['email'],
-          data['user']['name'],
-          data['user']['id'],
-        );
-
-        return {'success': true, 'role': userRole, 'user': data['user']};
-      } else {
-        // Handle khusus untuk user belum terdaftar
-        if (response.statusCode == 401 &&
-            data['message']?.contains('USER_NOT_REGISTERED')) {
-          throw Exception(
-            'Akun Google belum terdaftar sebagai admin/satpam. Silakan daftar terlebih dahulu.',
-          );
-        }
-        throw Exception(data['message'] ?? 'Google login failed');
-      }
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
       rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // Helper method untuk extract original role
+  String? _extractOriginalRole(AuthResponse response) {
+    try {
+      // Coba ambil dari data mentah response
+      // Anda mungkin perlu menyesuaikan ini tergantung struktur response
+      return response.user?.originalRole;
+    } catch (e) {
+      return response.user?.role;
     }
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('userRole');
-    await prefs.remove('userEmail');
-    await prefs.remove('userName');
-    await prefs.remove('userId');
-    await prefs.remove('pendingEmail');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('user');
+      await prefs.remove('original_role'); // Hapus juga original role
 
-    _token = null;
-    _userRole = null;
-    _userEmail = null;
-    _userName = null;
-    _userId = null;
-    _isOtpSent = false;
+      _user = null;
+      _token = null;
+      _error = null;
+      _originalRole = null;
 
-    notifyListeners();
+      notifyListeners();
+    } catch (e) {
+      print('Error during logout: $e');
+    }
   }
+}
 
-  // Helper untuk mendapatkan email yang sedang dalam proses OTP
-  Future<String?> getPendingEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('pendingEmail');
-  }
-
-  void resetOtpState() {
-    _isOtpSent = false;
-    _error = null;
-    notifyListeners();
-  }
-
-  bool get isAdmin => _userRole == 'ADMIN' || _userRole == 'SUPER_ADMIN';
-  bool get isSatpam => _userRole == 'SATPAM';
-  bool get isAuthenticated => _token != null;
+Map<String, dynamic> jsonDecode(String source) {
+  return json.decode(source);
 }

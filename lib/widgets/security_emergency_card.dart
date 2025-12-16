@@ -10,7 +10,7 @@ class SecurityEmergencyCard extends StatelessWidget {
     Key? key,
     required this.emergency,
     this.onRespond,
-    this.isResponded = false,
+    this.isResponded = false, required bool isAssigned, String? responseStatus,
   }) : super(key: key);
 
   @override

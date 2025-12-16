@@ -118,7 +118,7 @@ class AnnouncementService {
         headers: await _getHeaders(),
       );
 
-      if (response.statusCode != 200 && response.statusCode != 204) {
+      if (response.statusCode.toString().startsWith('2')) {
         throw Exception('Gagal menghapus pengumuman: ${response.statusCode}');
       }
     } catch (e) {
