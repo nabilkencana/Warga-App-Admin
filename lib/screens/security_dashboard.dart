@@ -133,24 +133,22 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
 
       // Show loading
       showDialog(
-  context: context,
-  barrierDismissible: false,
-  builder: (context) => AlertDialog(
-    title: Text(
-      'Check-in',
-      style: TextStyle(fontWeight: FontWeight.bold),
-    ),
-    content: Row(
-      children: [
-        CircularProgressIndicator(color: Colors.grey[700]),
-        SizedBox(width: 16),
-        Text('Memproses check-in...'),
-      ],
-    ),
-  ),
-);
-
-
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text(
+            'Check-in',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Colors.grey[700]),
+              SizedBox(width: 16),
+              Text('Memproses check-in...'),
+            ],
+          ),
+        ),
+      );
       // Gunakan endpoint user-based
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/security/check-in/user'),
@@ -233,16 +231,19 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Check-out', style: TextStyle(fontWeight: FontWeight.bold),),
+          title: Text(
+            'Check-out',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: Text('Apakah Anda yakin ingin check-out?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Batal',style: TextStyle(color: Colors.grey[700]),),
+              child: Text('Batal', style: TextStyle(color: Colors.grey[700])),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text('Ya, Check-out', style: TextStyle(color: Colors.red),),
+              child: Text('Ya, Check-out', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),
@@ -255,10 +256,10 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: Text('Check-out'),
+          title: Text('Check-out', style: TextStyle(fontWeight: FontWeight.bold),),
           content: Row(
             children: [
-              CircularProgressIndicator(),
+              CircularProgressIndicator(color: Colors.grey[700],),
               SizedBox(width: 16),
               Text('Memproses check-out...'),
             ],
@@ -669,10 +670,25 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
                             onPressed: isOnDuty
                                 ? null
                                 : () {
+                                    if (isOnDuty) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Anda sudah dalam tugas',
+                                          ),
+                                          backgroundColor:
+                                              Colors.orange.shade600,
+                                        ),
+                                      );
+                                      return;
+                                    }
+
                                     _checkIn();
                                   },
-                            icon: Icon(Icons.play_arrow),
-                            label: Text('Mulai Tugas'),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Mulai Tugas'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green.shade700,
                               foregroundColor: Colors.white,
@@ -680,6 +696,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
                             ),
                           ),
                         ),
+
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton.icon(
@@ -1011,7 +1028,11 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -1103,12 +1124,15 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Emergency Response', style: TextStyle(fontWeight: FontWeight.bold),),
+        title: Text(
+          'Emergency Response',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: Text('Pilih aksi emergency:'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal', style: TextStyle(color: Colors.grey[700]),),
+            child: Text('Batal', style: TextStyle(color: Colors.grey[700])),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1116,7 +1140,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
               // Show emergency list
               _showEmergencyList();
             },
-            child: Text('Lihat Daftar', style: TextStyle(color: Colors.red),),
+            child: Text('Lihat Daftar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1157,59 +1181,59 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
   void _showReportDialog() {
     final textController = TextEditingController();
 
-final _formKey = GlobalKey<FormState>();
+    final _formKey = GlobalKey<FormState>();
     showDialog(
-  context: context,
-  barrierDismissible: false,
-  builder: (context) => AlertDialog(
-    title: const Text(
-      'Buat Laporan Insiden',
-      style: TextStyle(fontWeight: FontWeight.bold),
-    ),
-    content: Form(
-      key: _formKey,
-      child: TextFormField(
-        controller: textController,
-        maxLines: 4,
-        validator: (value) {
-          if (value == null || value.trim().isEmpty) {
-            return 'Detail insiden tidak boleh kosong';
-          }
-          return null;
-        },
-        decoration: const InputDecoration(
-          hintText: 'Masukkan detail insiden...',
-          border: OutlineInputBorder(),
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'Buat Laporan Insiden',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(
-          'Batal',
-          style: TextStyle(color: Colors.grey[700]),
+        content: Form(
+          key: _formKey,
+          child: TextFormField(
+            controller: textController,
+            maxLines: 4,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Detail insiden tidak boleh kosong';
+              }
+              return null;
+            },
+            decoration: const InputDecoration(
+              hintText: 'Masukkan detail insiden...',
+              border: OutlineInputBorder(),
+            ),
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal', style: TextStyle(color: Colors.grey[700])),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                _reportIncident(textController.text.trim());
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Kirim', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
       ),
-      ElevatedButton(
-        onPressed: () {
-          if (_formKey.currentState!.validate()) {
-            _reportIncident(textController.text.trim());
-            Navigator.pop(context);
-          }
-        },
-        child: const Text('Kirim', style: TextStyle(color: Colors.orange)),
-      ),
-    ],
-  ),
-);
+    );
   }
 
   void _showStatsDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Statistik Performa',style: TextStyle(fontWeight: FontWeight.bold),),
+        title: Text(
+          'Statistik Performa',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: _stats == null
             ? Text('Tidak ada data statistik')
             : Column(
@@ -1251,7 +1275,13 @@ final _formKey = GlobalKey<FormState>();
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label),
-          Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.deepPurple,
+            ),
+          ),
         ],
       ),
     );
