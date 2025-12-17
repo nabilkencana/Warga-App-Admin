@@ -133,19 +133,23 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
 
       // Show loading
       showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text('Check-in',style: TextStyle(fontWeight: FontWeight.bold),),
-          content: Row(
-            children: [
-              CircularProgressIndicator(color: Colors.grey[700],),
-              SizedBox(width: 16),
-              Text('Memproses check-in...'),
-            ],
-          ),
-        ),
-      );
+  context: context,
+  barrierDismissible: false,
+  builder: (context) => AlertDialog(
+    title: Text(
+      'Check-in',
+      style: TextStyle(fontWeight: FontWeight.bold),
+    ),
+    content: Row(
+      children: [
+        CircularProgressIndicator(color: Colors.grey[700]),
+        SizedBox(width: 16),
+        Text('Memproses check-in...'),
+      ],
+    ),
+  ),
+);
+
 
       // Gunakan endpoint user-based
       final response = await http.post(
@@ -1251,10 +1255,5 @@ final _formKey = GlobalKey<FormState>();
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 }
