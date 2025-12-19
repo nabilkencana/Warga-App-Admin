@@ -1,6 +1,7 @@
 // screens/announcements_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wargaapp_admin/providers/auth_provider.dart';
 import '../providers/announcement_provider.dart';
 import '../models/announcement.dart';
 
@@ -20,13 +21,19 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<AnnouncementProvider>(
+      final announcementProvider = Provider.of<AnnouncementProvider>(
         context,
         listen: false,
       );
-      provider.loadAnnouncements();
-      // Set current user ID dari data login
-      provider.setCurrentUserId(1); // Ganti dengan ID user yang login
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      // Set user ID dari auth provider
+      if (authProvider.user?.id != null) {
+        announcementProvider.setCurrentUserInfo(authProvider.user!.id);
+      }
+
+      // Load announcements dengan context
+      announcementProvider.loadAnnouncements(context);
     });
   }
 
@@ -85,67 +92,134 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFFF7F9FC),
-      appBar: AppBar(
-        title: Text(
-          'Pengumuman',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+    return Consumer<AnnouncementProvider>(
+      builder: (context, provider, child) {
+        // Cek jika perlu login ulang
+        if (provider.needsReLogin) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showReLoginDialog(context);
+          });
+        }
+        return Scaffold(
+          backgroundColor: Color(0xFFF7F9FC),
+          appBar: AppBar(
+            title: Text(
+              'Pengumuman',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+            backgroundColor: Colors.white,
+            foregroundColor: Color(0xFF1E88E5),
+            elevation: 1,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: Color(0xFF1E88E5)),
+              onPressed: () => Navigator.pop(context),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.refresh, color: Color(0xFF1E88E5)),
+                onPressed: () {
+                  final provider = Provider.of<AnnouncementProvider>(
+                    context,
+                    listen: false,
+                  );
+                  provider.loadAnnouncements(context);
+                },
+                tooltip: 'Refresh',
+              ),
+            ],
+          ),
+          body: Consumer<AnnouncementProvider>(
+            builder: (context, provider, child) {
+              final filteredAnnouncements = _filterAnnouncements(
+                provider.announcements,
+              );
+
+              return Column(
+                children: [
+                  // Search Bar dengan Filter
+                  _buildSearchAndFilterSection(),
+
+                  // Stats Info
+                  if (!provider.isLoading && provider.announcements.isNotEmpty)
+                    _buildStatsInfo(
+                      provider.announcements.length,
+                      filteredAnnouncements.length,
+                    ),
+
+                  // Content
+                  Expanded(
+                    child: _buildContent(provider, filteredAnnouncements),
+                  ),
+                ],
+              );
+            },
+          ),
+          floatingActionButton: Consumer<AnnouncementProvider>(
+            builder: (context, provider, child) {
+              return FloatingActionButton(
+                onPressed: provider.isCreating
+                    ? null // ⬅️ Disable saat loading
+                    : () => _showAddAnnouncementDialog(context),
+                backgroundColor: provider.isCreating
+                    ? Colors.grey[400] // ⬅️ Warna abu saat loading
+                    : Color(0xFF1E88E5),
+                child: provider.isCreating
+                    ? SizedBox(
+                        // ⬅️ Loading indicator di FAB
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Icon(Icons.add, color: Colors.white, size: 28),
+                elevation: 4,
+                tooltip: provider.isCreating
+                    ? 'Sedang membuat...'
+                    : 'Buat Pengumuman',
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showReLoginDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Sesi Berakhir'),
+          ],
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Color(0xFF1E88E5),
-        elevation: 1,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Color(0xFF1E88E5)),
-          onPressed: () => Navigator.pop(context),
+        content: Text(
+          'Sesi Anda telah berakhir. Silakan login kembali untuk melanjutkan.',
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: Color(0xFF1E88E5)),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Nanti'),
+          ),
+          ElevatedButton(
             onPressed: () {
-              final provider = Provider.of<AnnouncementProvider>(
+              Navigator.of(context).pop();
+              // Navigate ke login screen
+              Navigator.pushNamedAndRemoveUntil(
                 context,
-                listen: false,
+                '/login',
+                (route) => false,
               );
-              provider.loadAnnouncements();
             },
-            tooltip: 'Refresh',
+            style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF1E88E5)),
+            child: Text('Login Sekarang'),
           ),
         ],
-      ),
-      body: Consumer<AnnouncementProvider>(
-        builder: (context, provider, child) {
-          final filteredAnnouncements = _filterAnnouncements(
-            provider.announcements,
-          );
-
-          return Column(
-            children: [
-              // Search Bar dengan Filter
-              _buildSearchAndFilterSection(),
-
-              // Stats Info
-              if (!provider.isLoading && provider.announcements.isNotEmpty)
-                _buildStatsInfo(
-                  provider.announcements.length,
-                  filteredAnnouncements.length,
-                ),
-
-              // Content
-              Expanded(child: _buildContent(provider, filteredAnnouncements)),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: Consumer<AnnouncementProvider>(
-        builder: (context, provider, child) {
-          return FloatingActionButton(
-            onPressed: () => _showAddAnnouncementDialog(context),
-            backgroundColor: Color(0xFF1E88E5),
-            child: Icon(Icons.add, color: Colors.white, size: 28),
-            elevation: 4,
-          );
-        },
       ),
     );
   }
@@ -282,7 +356,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => provider.loadAnnouncements(),
+      onRefresh: () => provider.loadAnnouncements(context),
       color: Color(0xFF1E88E5),
       child: ListView.builder(
         padding: EdgeInsets.all(16),
@@ -343,7 +417,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             ),
             SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () => provider.loadAnnouncements(),
+              onPressed: () => provider.loadAnnouncements(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF1E88E5),
                 foregroundColor: Colors.white,
@@ -621,33 +695,48 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildOwnerActions(Announcement announcement, BuildContext context) {
-    Provider.of<AnnouncementProvider>(context, listen: false);
+    return Consumer<AnnouncementProvider>(
+      builder: (context, provider, child) {
+        final isProcessing = provider.isUpdating || provider.isDeleting;
 
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert, color: Colors.grey[500]),
-      onSelected: (value) => _handleOwnerAction(value, announcement, context),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit, size: 18, color: Color(0xFF1E88E5)),
-              SizedBox(width: 8),
-              Text('Edit'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete, size: 18, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Hapus'),
-            ],
-          ),
-        ),
-      ],
+        return PopupMenuButton<String>(
+          enabled: !isProcessing, // ⬅️ Disable saat processing
+          icon: isProcessing
+              ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.grey[500],
+                  ),
+                )
+              : Icon(Icons.more_vert, color: Colors.grey[500]),
+          onSelected: (value) =>
+              _handleOwnerAction(value, announcement, context),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'edit',
+              child: Row(
+                children: [
+                  Icon(Icons.edit, size: 18, color: Color(0xFF1E88E5)),
+                  SizedBox(width: 8),
+                  Text('Edit'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, size: 18, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Hapus'),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -668,232 +757,285 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
- void _showAddAnnouncementDialog(BuildContext context) {
-  final titleController = TextEditingController();
-  final descriptionController = TextEditingController();
-  final dayController = TextEditingController();
-  DateTime selectedDate = DateTime.now();
-  String selectedAudience = 'ALL';
+  void _showAddAnnouncementDialog(BuildContext context) {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final dayController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
+    String selectedAudience = 'ALL_RESIDENTS';
 
-  // Fungsi untuk mendapatkan nama hari dalam Bahasa Indonesia
-  String _getIndonesianDayName(DateTime date) {
-    const days = [
-      'Minggu',
-      'Senin',
-      'Selasa',
-      'Rabu',
-      'Kamis',
-      'Jumat',
-      'Sabtu'
-    ];
-    return days[date.weekday % 7];
-  }
+    String _getIndonesianDayName(DateTime date) {
+      const days = [
+        'Minggu',
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+      ];
+      return days[date.weekday % 7];
+    }
 
-  // Set hari otomatis saat pertama kali buka
-  dayController.text = _getIndonesianDayName(selectedDate);
+    dayController.text = _getIndonesianDayName(selectedDate);
 
-  showDialog(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            constraints: BoxConstraints(maxHeight: 600),
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF1E88E5).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.announcement,
-                        color: Color(0xFF1E88E5),
-                        size: 24,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Buat Pengumuman Baru',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                    ),
-                  ],
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ⬅️ Mencegah dialog ditutup saat loading
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return Consumer<AnnouncementProvider>(
+            builder: (context, provider, child) {
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                SizedBox(height: 24),
+                child: Container(
+                  constraints: BoxConstraints(maxHeight: 600),
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Color(0xFF1E88E5).withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.announcement,
+                              color: Color(0xFF1E88E5),
+                              size: 24,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Buat Pengumuman Baru',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                          if (provider
+                              .isCreating) // ⬅️ Tampilkan loading kecil di header
+                            Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF1E88E5),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 24),
 
-                // Form Content
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Judul Pengumuman
-                        _buildFormField(
-                          controller: titleController,
-                          label: 'Judul Pengumuman',
-                          hint: 'Masukkan judul pengumuman',
-                          maxLines: 1,
-                          icon: Icons.title,
-                        ),
-                        SizedBox(height: 16),
+                      // Form Content atau Loading
+                      if (!provider
+                          .isCreating) // ⬅️ Tampilkan form jika TIDAK loading
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildFormField(
+                                  controller: titleController,
+                                  label: 'Judul Pengumuman',
+                                  hint: 'Masukkan judul pengumuman',
+                                  maxLines: 1,
+                                  icon: Icons.title,
+                                ),
+                                SizedBox(height: 16),
 
-                        // Deskripsi Pengumuman
-                        _buildFormField(
-                          controller: descriptionController,
-                          label: 'Deskripsi Pengumuman',
-                          hint: 'Tulis deskripsi pengumuman di sini...',
-                          maxLines: 4,
-                          icon: Icons.description,
-                        ),
-                        SizedBox(height: 16),
+                                _buildFormField(
+                                  controller: descriptionController,
+                                  label: 'Deskripsi Pengumuman',
+                                  hint: 'Tulis deskripsi pengumuman di sini...',
+                                  maxLines: 4,
+                                  icon: Icons.description,
+                                ),
+                                SizedBox(height: 16),
 
-                        // Tanggal
-                        _buildDatePicker(
-                          selectedDate: selectedDate,
-                          onDateChanged: (date) {
-                            setState(() {
-                              selectedDate = date;
-                              // Auto-fill hari berdasarkan tanggal
-                              dayController.text = _getIndonesianDayName(date);
-                            });
-                          },
-                        ),
-                        SizedBox(height: 16),
+                                _buildDatePicker(
+                                  selectedDate: selectedDate,
+                                  onDateChanged: (date) {
+                                    setState(() {
+                                      selectedDate = date;
+                                      dayController.text =
+                                          _getIndonesianDayName(date);
+                                    });
+                                  },
+                                ),
+                                SizedBox(height: 16),
 
-                        // Hari (auto-filled)
-                        _buildFormField(
-                          controller: dayController,
-                          label: 'Hari',
-                          hint: 'Hari akan terisi otomatis',
-                          maxLines: 1,
-                          icon: Icons.calendar_view_day,
-                          readOnly: true, // Biarkan user tidak bisa edit manual
-                        ),
-                        SizedBox(height: 16),
+                                _buildFormField(
+                                  controller: dayController,
+                                  label: 'Hari',
+                                  hint: 'Hari akan terisi otomatis',
+                                  maxLines: 1,
+                                  icon: Icons.calendar_view_day,
+                                  readOnly: true,
+                                ),
+                                SizedBox(height: 16),
 
-                        // Target Audience
-                        _buildAudienceDropdown(
-                          selectedAudience: selectedAudience,
-                          onChanged: (value) =>
-                              setState(() => selectedAudience = value!),
+                                _buildAudienceDropdown(
+                                  selectedAudience: selectedAudience,
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => selectedAudience = value);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else // ⬅️ Tampilkan loading screen jika SEDANG loading
+                        Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: Color(0xFF1E88E5),
+                                  strokeWidth: 3,
+                                ),
+                                SizedBox(height: 20),
+                                Text(
+                                  'Membuat pengumuman...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Mohon tunggu sebentar',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
+
+                      SizedBox(height: 24),
+
+                      // Action Buttons - Sembunyikan saat loading
+                      if (!provider.isCreating)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                child: Text(
+                                  'Batal',
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  if (titleController.text.isEmpty) {
+                                    _showWarningSnackbar(
+                                      context,
+                                      'Judul pengumuman harus diisi',
+                                    );
+                                    return;
+                                  }
+
+                                  if (descriptionController.text.isEmpty) {
+                                    _showWarningSnackbar(
+                                      context,
+                                      'Deskripsi pengumuman harus diisi',
+                                    );
+                                    return;
+                                  }
+
+                                  try {
+                                    final provider =
+                                        Provider.of<AnnouncementProvider>(
+                                          context,
+                                          listen: false,
+                                        );
+
+                                    await provider.addAnnouncement(
+                                      context: context,
+                                      title: titleController.text,
+                                      description: descriptionController.text,
+                                      targetAudience: selectedAudience,
+                                      date: selectedDate,
+                                      day: dayController.text,
+                                    );
+
+                                    _showSuccessSnackbar(
+                                      context,
+                                      'Pengumuman berhasil dibuat',
+                                    );
+
+                                    Navigator.pop(context);
+                                  } catch (e) {
+                                    _showErrorSnackbar(
+                                      context,
+                                      'Gagal membuat pengumuman: $e',
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xFF1E88E5),
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 2,
+                                ),
+                                child: Text(
+                                  'Buat Pengumuman',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 24),
-
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: BorderSide(color: Colors.grey[300]!),
-                        ),
-                        child: Text(
-                          'Batal',
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          if (titleController.text.isEmpty) {
-                            _showWarningSnackbar(
-                              context,
-                              'Judul pengumuman harus diisi',
-                            );
-                            return;
-                          }
-
-                          if (descriptionController.text.isEmpty) {
-                            _showWarningSnackbar(
-                              context,
-                              'Deskripsi pengumuman harus diisi',
-                            );
-                            return;
-                          }
-
-                          try {
-                            final provider =
-                                Provider.of<AnnouncementProvider>(
-                              context,
-                              listen: false,
-                            );
-                            await provider.addAnnouncement(
-                              title: titleController.text,
-                              description: descriptionController.text,
-                              targetAudience: selectedAudience,
-                              date: selectedDate,
-                              day: dayController.text,
-                            );
-                            _showSuccessSnackbar(
-                              context,
-                              'Pengumuman berhasil dibuat',
-                            );
-                            Navigator.pop(context);
-                          } catch (e) {
-                            _showErrorSnackbar(
-                              context,
-                              'Gagal membuat pengumuman: $e',
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF1E88E5),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: Text(
-                          'Buat Pengumuman',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ),
-  );
-}
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 
   Widget _buildFormField({
     required TextEditingController controller,
@@ -1071,30 +1213,39 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   Widget _buildAudienceDropdown({
     required String selectedAudience,
     required Function(String?) onChanged,
+    List<String>? rtOptions, // Tambahkan opsi RT jika tersedia
   }) {
-    // Fungsi untuk mendapatkan warna berdasarkan audience
-    Color _getAudienceColor(String audience) {
-      switch (audience) {
-        case 'ADMIN':
-          return Colors.red;
-        case 'VOLUNTEER':
-          return Colors.green;
-        case 'ALL':
-        default:
-          return Color(0xFF1E88E5);
-      }
-    }
+    // Daftar target audience sesuai backend
+    final List<Map<String, dynamic>> audienceOptions = [
+      {
+        'value': 'ALL_RESIDENTS',
+        'label': 'Semua Warga',
+        'icon': Icons.people,
+        'color': Color(0xFF3B82F6),
+      },
+      {
+        'value': 'VOLUNTEER',
+        'label': 'Volunteer',
+        'icon': Icons.volunteer_activism,
+        'color': Colors.green,
+      },
+      {
+        'value': 'ADMIN',
+        'label': 'Admin',
+        'icon': Icons.admin_panel_settings,
+        'color': Colors.red,
+      },
+    ];
 
-    // Fungsi untuk mendapatkan icon berdasarkan audience
-    IconData _getAudienceIcon(String audience) {
-      switch (audience) {
-        case 'ADMIN':
-          return Icons.admin_panel_settings;
-        case 'VOLUNTEER':
-          return Icons.volunteer_activism;
-        case 'ALL':
-        default:
-          return Icons.people;
+    // Tambahkan opsi RT jika ada
+    if (rtOptions != null) {
+      for (var rt in rtOptions) {
+        audienceOptions.add({
+          'value': 'RT_$rt',
+          'label': 'RT $rt',
+          'icon': Icons.home,
+          'color': Colors.orange,
+        });
       }
     }
 
@@ -1137,50 +1288,22 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             ),
             dropdownColor: Colors.white,
             icon: Icon(Icons.arrow_drop_down, color: Color(0xFF1E88E5)),
-            items: [
-              DropdownMenuItem(
-                value: 'ALL',
+            items: audienceOptions.map((option) {
+              return DropdownMenuItem<String>(
+                value: option['value'],
                 child: Row(
                   children: [
                     Icon(
-                      _getAudienceIcon('ALL'),
-                      color: _getAudienceColor('ALL'),
+                      option['icon'] as IconData,
+                      color: option['color'] as Color,
                       size: 18,
                     ),
                     SizedBox(width: 8),
-                    Text('Semua User'),
+                    Text(option['label'] as String),
                   ],
                 ),
-              ),
-              DropdownMenuItem(
-                value: 'VOLUNTEER',
-                child: Row(
-                  children: [
-                    Icon(
-                      _getAudienceIcon('VOLUNTEER'),
-                      color: _getAudienceColor('VOLUNTEER'),
-                      size: 18,
-                    ),
-                    SizedBox(width: 8),
-                    Text('Volunteer'),
-                  ],
-                ),
-              ),
-              DropdownMenuItem(
-                value: 'ADMIN',
-                child: Row(
-                  children: [
-                    Icon(
-                      _getAudienceIcon('ADMIN'),
-                      color: _getAudienceColor('ADMIN'),
-                      size: 18,
-                    ),
-                    SizedBox(width: 8),
-                    Text('Admin'),
-                  ],
-                ),
-              ),
-            ],
+              );
+            }).toList(),
             onChanged: onChanged,
           ),
         ),
@@ -1214,7 +1337,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     DateTime selectedDate = announcement.date;
     String selectedAudience = announcement.targetAudience;
 
-    // Fungsi untuk mendapatkan nama hari
     String _getIndonesianDayName(DateTime date) {
       const days = [
         'Minggu',
@@ -1230,180 +1352,229 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Container(
-              constraints: BoxConstraints(maxHeight: 600),
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header Edit
-                  Row(
+          return Consumer<AnnouncementProvider>(
+            builder: (context, provider, child) {
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Container(
+                  constraints: BoxConstraints(maxHeight: 600),
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.edit, color: Colors.orange, size: 24),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Edit Pengumuman',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-
-                  // Form Content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      // Header Edit
+                      Row(
                         children: [
-                          _buildFormField(
-                            controller: titleController,
-                            label: 'Judul Pengumuman',
-                            hint: 'Masukkan judul pengumuman',
-                            maxLines: 1,
-                            icon: Icons.title,
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.edit,
+                              color: Colors.orange,
+                              size: 24,
+                            ),
                           ),
-                          SizedBox(height: 16),
-                          _buildFormField(
-                            controller: descriptionController,
-                            label: 'Deskripsi Pengumuman',
-                            hint: 'Tulis deskripsi pengumuman di sini...',
-                            maxLines: 4,
-                            icon: Icons.description,
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Edit Pengumuman',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
                           ),
-                          SizedBox(height: 16),
-                          _buildDatePicker(
-                            selectedDate: selectedDate,
-                            onDateChanged: (date) {
-                              setState(() {
-                                selectedDate = date;
-                                // Auto-fill hari berdasarkan tanggal
-                                dayController.text = _getIndonesianDayName(
-                                  date,
-                                );
-                              });
-                            },
-                          ),
-                          SizedBox(height: 16),
-                          _buildFormField(
-                            controller: dayController,
-                            label: 'Hari',
-                            hint: 'Hari akan terisi otomatis',
-                            maxLines: 1,
-                            icon: Icons.calendar_view_day,
-                            readOnly: true,
-                          ),
-                          SizedBox(height: 16),
-                          _buildAudienceDropdown(
-                            selectedAudience: selectedAudience,
-                            onChanged: (value) =>
-                                setState(() => selectedAudience = value!),
-                          ),
+                          if (provider
+                              .isUpdating) // ⬅️ Loading indicator di header
+                            Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                    ),
-                  ),
-                  SizedBox(height: 24),
+                      SizedBox(height: 24),
 
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      // Form atau Loading
+                      if (!provider.isUpdating)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildFormField(
+                                  controller: titleController,
+                                  label: 'Judul Pengumuman',
+                                  hint: 'Masukkan judul pengumuman',
+                                  maxLines: 1,
+                                  icon: Icons.title,
+                                ),
+                                SizedBox(height: 16),
+                                _buildFormField(
+                                  controller: descriptionController,
+                                  label: 'Deskripsi Pengumuman',
+                                  hint: 'Tulis deskripsi pengumuman di sini...',
+                                  maxLines: 4,
+                                  icon: Icons.description,
+                                ),
+                                SizedBox(height: 16),
+                                _buildDatePicker(
+                                  selectedDate: selectedDate,
+                                  onDateChanged: (date) {
+                                    setState(() {
+                                      selectedDate = date;
+                                      dayController.text =
+                                          _getIndonesianDayName(date);
+                                    });
+                                  },
+                                ),
+                                SizedBox(height: 16),
+                                _buildFormField(
+                                  controller: dayController,
+                                  label: 'Hari',
+                                  hint: 'Hari akan terisi otomatis',
+                                  maxLines: 1,
+                                  icon: Icons.calendar_view_day,
+                                  readOnly: true,
+                                ),
+                                SizedBox(height: 16),
+                                _buildAudienceDropdown(
+                                  selectedAudience: selectedAudience,
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => selectedAudience = value);
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
-                            side: BorderSide(color: Colors.grey[300]!),
                           ),
-                          child: Text(
-                            'Batal',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w500,
+                        )
+                      else
+                        Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: Colors.orange,
+                                  strokeWidth: 3,
+                                ),
+                                SizedBox(height: 20),
+                                Text(
+                                  'Memperbarui pengumuman...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (titleController.text.isEmpty ||
-                                descriptionController.text.isEmpty) {
-                              _showWarningSnackbar(
-                                context,
-                                'Harap isi semua field yang wajib',
-                              );
-                              return;
-                            }
+                      SizedBox(height: 24),
 
-                            try {
-                              final provider =
-                                  Provider.of<AnnouncementProvider>(
-                                    context,
-                                    listen: false,
-                                  );
-                              await provider.updateAnnouncement(
-                                id: announcement.id,
-                                title: titleController.text,
-                                description: descriptionController.text,
-                                targetAudience: selectedAudience,
-                                date: selectedDate,
-                                day: dayController.text,
-                              );
-                              _showSuccessSnackbar(
-                                context,
-                                'Pengumuman berhasil diupdate',
-                              );
-                              Navigator.pop(context);
-                            } catch (e) {
-                              _showErrorSnackbar(
-                                context,
-                                'Gagal mengupdate pengumuman: $e',
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      // Action Buttons
+                      if (!provider.isUpdating)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                child: Text(
+                                  'Batal',
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            'Update Pengumuman',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  if (titleController.text.isEmpty ||
+                                      descriptionController.text.isEmpty) {
+                                    _showWarningSnackbar(
+                                      context,
+                                      'Harap isi semua field yang wajib',
+                                    );
+                                    return;
+                                  }
+
+                                  try {
+                                    final provider =
+                                        Provider.of<AnnouncementProvider>(
+                                          context,
+                                          listen: false,
+                                        );
+                                    await provider.updateAnnouncement(
+                                      context: context,
+                                      id: announcement.id,
+                                      title: titleController.text,
+                                      description: descriptionController.text,
+                                      targetAudience: selectedAudience,
+                                      date: selectedDate,
+                                      day: dayController.text,
+                                    );
+                                    _showSuccessSnackbar(
+                                      context,
+                                      'Pengumuman berhasil diupdate',
+                                    );
+                                    Navigator.pop(context);
+                                  } catch (e) {
+                                    _showErrorSnackbar(
+                                      context,
+                                      'Gagal mengupdate pengumuman: $e',
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Update Pengumuman',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       ),
@@ -1413,90 +1584,132 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   void _showDeleteDialog(Announcement announcement, BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.warning, size: 32, color: Colors.red),
+      barrierDismissible: false,
+      builder: (context) {
+        return Consumer<AnnouncementProvider>(
+          builder: (context, provider, child) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-              SizedBox(height: 16),
-              Text(
-                'Hapus Pengumuman',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Apakah Anda yakin ingin menghapus pengumuman "${announcement.title}"? Tindakan ini tidak dapat dibatalkan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey[600], fontSize: 14),
-              ),
-              SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+              child: Container(
+                padding: EdgeInsets.all(24),
+                child: provider.isDeleting
+                    ? Column(
+                        // ⬅️ Loading screen saat hapus
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Colors.red,
+                            strokeWidth: 3,
+                          ),
+                          SizedBox(height: 20),
+                          Text(
+                            'Menghapus pengumuman...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        // ⬅️ Dialog konfirmasi normal
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.red[50],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.warning,
+                              size: 32,
+                              color: Colors.red,
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'Hapus Pengumuman',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'Apakah Anda yakin ingin menghapus pengumuman "${announcement.title}"? Tindakan ini tidak dapat dibatalkan.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                          SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text('Batal'),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () async {
+                                    try {
+                                      final provider =
+                                          Provider.of<AnnouncementProvider>(
+                                            context,
+                                            listen: false,
+                                          );
+                                      await provider.deleteAnnouncement(
+                                        id: announcement.id,
+                                        context: context,
+                                      );
+                                      Navigator.pop(context);
+                                      _showSuccessSnackbar(
+                                        context,
+                                        'Pengumuman berhasil dihapus',
+                                      );
+                                    } catch (e) {
+                                      Navigator.pop(context);
+                                      _showErrorSnackbar(
+                                        context,
+                                        'Gagal menghapus pengumuman: $e',
+                                      );
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text('Hapus'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      child: Text('Batal'),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(context);
-                        try {
-                          final provider = Provider.of<AnnouncementProvider>(
-                            context,
-                            listen: false,
-                          );
-                          await provider.deleteAnnouncement(announcement.id);
-                          _showSuccessSnackbar(
-                            context,
-                            'Pengumuman berhasil dihapus',
-                          );
-                        } catch (e) {
-                          _showErrorSnackbar(
-                            context,
-                            'Gagal menghapus pengumuman: $e',
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text('Hapus'),
-                    ),
-                  ),
-                ],
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 

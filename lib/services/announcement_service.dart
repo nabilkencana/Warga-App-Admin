@@ -1,50 +1,69 @@
-// services/announcement_service.dart
+// services/announcement_service.dart - REVISI
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:flutter/material.dart';
+import 'package:wargaapp_admin/providers/auth_provider.dart';
 import '../models/announcement.dart';
 
 class AnnouncementService {
-  static const String baseUrl =
-      'https://wargakita.canadev.my.id'; // Ganti dengan URL API Anda
+  static const String baseUrl = 'https://wargakita.canadev.my.id';
 
-  // Tambahkan token management
-  Future<Map<String, String>> _getHeaders() async {
-    // Implement your token retrieval logic here
-    final token = await _getToken(); // Get from secure storage
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+  // Method untuk mendapatkan headers dengan token dari context
+  static Future<Map<String, String>> getHeaders(BuildContext context) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
+
+    final headers = {'Content-Type': 'application/json'};
+
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+      print('✅ Token ditemukan: ${token.substring(0, 20)}...');
+    } else {
+      print('❌ Token TIDAK ditemukan di AuthProvider');
+    }
+
+    return headers;
   }
 
-  Future<String?> _getToken() async {
-    // Implement token retrieval from shared preferences or secure storage
-    return null; // Replace with actual token retrieval
-  }
-
-  Future<List<Announcement>> getAnnouncements() async {
+  // Method untuk get announcements yang memerlukan context
+  Future<List<Announcement>> getAnnouncements(BuildContext context) async {
     try {
+      final headers = await getHeaders(context);
+      print('📡 Mengirim request ke: $baseUrl/announcements');
+      print('📋 Headers: $headers');
+
       final response = await http.get(
         Uri.parse('$baseUrl/announcements'),
-        headers: await _getHeaders(),
+        headers: headers,
       );
 
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+
       if (response.statusCode.toString().startsWith('2')) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          return data.map((item) => Announcement.fromJson(item)).toList();
-        } else {
-          throw Exception('Format response tidak valid');
-        }
+        final List<dynamic> data = json.decode(response.body);
+        print('✅ Berhasil memuat ${data.length} pengumuman');
+        return data.map((item) => Announcement.fromJson(item)).toList();
+      } else if (response.statusCode == 401) {
+        print('❌ Error 401: Unauthorized');
+        print('🔍 Response detail: ${response.body}');
+        throw Exception(
+          'Token tidak valid atau sudah kedaluwarsa. Silakan login kembali.',
+        );
+      } else if (response.statusCode == 403) {
+        throw Exception('Anda tidak memiliki izin untuk mengakses pengumuman');
       } else {
         throw Exception('Gagal memuat pengumuman: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Gagal memuat pengumuman: $e');
+      print('❌ Error loading announcements: $e');
+      rethrow;
     }
   }
 
-  Future<Announcement> createAnnouncement({
+  Future<AnnouncementResponse> createAnnouncement({
+    required BuildContext context,
     required String title,
     required String description,
     required String targetAudience,
@@ -52,9 +71,14 @@ class AnnouncementService {
     required String day,
   }) async {
     try {
+      final headers = await getHeaders(context);
+
+      print('📡 Mengirim request POST ke: $baseUrl/announcements');
+      print('📋 Data: title=$title, audience=$targetAudience');
+
       final response = await http.post(
         Uri.parse('$baseUrl/announcements'),
-        headers: await _getHeaders(),
+        headers: headers,
         body: json.encode({
           'title': title,
           'description': description,
@@ -64,22 +88,29 @@ class AnnouncementService {
         }),
       );
 
-      if (response.statusCode == 201 ||
-          response.statusCode.toString().startsWith('2')) {
+      print('📡 Response status: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+
+      if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
-        if (data['announcement'] != null) {
-          return Announcement.fromJson(data['announcement']);
-        }
-        return Announcement.fromJson(data);
+        return AnnouncementResponse.fromJson(data);
+      } else if (response.statusCode == 401) {
+        throw Exception('Token tidak valid. Silakan login kembali.');
+      } else if (response.statusCode == 403) {
+        throw Exception('Anda tidak memiliki izin untuk membuat pengumuman');
       } else {
-        throw Exception('Gagal membuat pengumuman: ${response.statusCode}');
+        throw Exception(
+          'Gagal membuat pengumuman: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
-      throw Exception('Gagal membuat pengumuman: $e');
+      print('❌ Error creating announcement: $e');
+      rethrow;
     }
   }
 
   Future<Announcement> updateAnnouncement({
+    required BuildContext context,
     required int id,
     required String title,
     required String description,
@@ -88,9 +119,11 @@ class AnnouncementService {
     required String day,
   }) async {
     try {
+      final headers = await getHeaders(context);
+
       final response = await http.put(
         Uri.parse('$baseUrl/announcements/$id'),
-        headers: await _getHeaders(),
+        headers: headers,
         body: json.encode({
           'title': title,
           'description': description,
@@ -103,46 +136,79 @@ class AnnouncementService {
       if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
         return Announcement.fromJson(data);
+      } else if (response.statusCode == 401) {
+        throw Exception('Token tidak valid. Silakan login kembali.');
+      } else if (response.statusCode == 403) {
+        throw Exception(
+          'Anda tidak memiliki izin untuk mengupdate pengumuman ini',
+        );
+      } else if (response.statusCode == 404) {
+        throw Exception('Pengumuman tidak ditemukan');
       } else {
         throw Exception('Gagal mengupdate pengumuman: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Gagal mengupdate pengumuman: $e');
+      rethrow;
     }
   }
 
-  Future<void> deleteAnnouncement(int id) async {
+  Future<DeleteResponse> deleteAnnouncement({
+    required BuildContext context,
+    required int id,
+  }) async {
     try {
+      final headers = await getHeaders(context);
+
       final response = await http.delete(
         Uri.parse('$baseUrl/announcements/$id'),
-        headers: await _getHeaders(),
-      );
-
-      if (response.statusCode.toString().startsWith('2')) {
-        throw Exception('Gagal menghapus pengumuman: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Gagal menghapus pengumuman: $e');
-    }
-  }
-
-  Future<Announcement> getAnnouncementById(int id) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/announcements/$id'),
-        headers: await _getHeaders(),
+        headers: headers,
       );
 
       if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
+        return DeleteResponse.fromJson(data);
+      } else if (response.statusCode == 401) {
+        throw Exception('Token tidak valid. Silakan login kembali.');
+      } else if (response.statusCode == 403) {
+        throw Exception(
+          'Anda tidak memiliki izin untuk menghapus pengumuman ini',
+        );
+      } else if (response.statusCode == 404) {
+        throw Exception('Pengumuman tidak ditemukan');
+      } else {
+        throw Exception('Gagal menghapus pengumuman: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Announcement> getAnnouncementById({
+    required BuildContext context,
+    required int id,
+  }) async {
+    try {
+      final headers = await getHeaders(context);
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/announcements/$id'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
         return Announcement.fromJson(data);
+      } else if (response.statusCode == 401) {
+        throw Exception('Token tidak valid. Silakan login kembali.');
+      } else if (response.statusCode == 404) {
+        throw Exception('Pengumuman tidak ditemukan');
       } else {
         throw Exception(
           'Gagal memuat detail pengumuman: ${response.statusCode}',
         );
       }
     } catch (e) {
-      throw Exception('Gagal memuat detail pengumuman: $e');
+      rethrow;
     }
   }
 }

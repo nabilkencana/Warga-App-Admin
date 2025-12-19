@@ -1,5 +1,6 @@
-// providers/announcement_provider.dart
+// providers/announcement_provider.dart - REVISI
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart'; // Tambahkan import ini
 import '../models/announcement.dart';
 import '../services/announcement_service.dart';
 
@@ -8,49 +9,82 @@ class AnnouncementProvider with ChangeNotifier {
 
   List<Announcement> _announcements = [];
   bool _isLoading = false;
+  bool _isCreating = false;
+  bool _isUpdating = false;
+  bool _isDeleting = false;
   String? _error;
-  int? _currentUserId; // Untuk mengecek apakah user adalah pembuat pengumuman
+  int? _currentUserId;
+  bool _needsReLogin = false;
 
   List<Announcement> get announcements => _announcements;
   bool get isLoading => _isLoading;
+  bool get isCreating => _isCreating;
+  bool get isUpdating => _isUpdating;
+  bool get isDeleting => _isDeleting;
   String? get error => _error;
+  bool get needsReLogin => _needsReLogin;
+  int? get currentUserId => _currentUserId;
 
-  // Set current user ID (dari login)
-  void setCurrentUserId(int? userId) {
+  // Set user ID dari AuthProvider
+  void setCurrentUserInfo(int? userId) {
     _currentUserId = userId;
     notifyListeners();
   }
 
-  // Cek apakah user adalah pembuat pengumuman
-  bool isAnnouncementOwner(Announcement announcement) {
-    return _currentUserId != null && announcement.createdBy == _currentUserId;
+  // Clear error state
+  void clearError() {
+    _error = null;
+    _needsReLogin = false;
+    notifyListeners();
   }
 
-  Future<void> loadAnnouncements() async {
-    _setLoading(true);
+  // ✅ PERBAIKI: Tambahkan parameter BuildContext
+  Future<void> loadAnnouncements(BuildContext context) async {
+    _isLoading = true;
     _error = null;
+    _needsReLogin = false;
+    notifyListeners();
 
     try {
-      _announcements = await _announcementService.getAnnouncements();
+      _announcements = await _announcementService.getAnnouncements(context);
       _announcements.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      print('✅ Berhasil memuat ${_announcements.length} pengumuman');
     } catch (e) {
       _error = e.toString();
+
+      // Cek jika error karena authentication
+      if (_error!.contains('Token tidak valid') ||
+          _error!.contains('401') ||
+          _error!.contains('Unauthorized')) {
+        _needsReLogin = true;
+        _error = 'Sesi Anda telah berakhir. Silakan login kembali.';
+      }
+
+      print('❌ Error dalam loadAnnouncements: $_error');
     } finally {
-      _setLoading(false);
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
+  // ✅ PERBAIKI: Update method signature untuk sesuai dengan service
   Future<void> addAnnouncement({
+    required BuildContext context, // Ubah dari dynamic ke BuildContext
     required String title,
     required String description,
     required String targetAudience,
     required DateTime date,
     required String day,
   }) async {
-    _setLoading(true);
+    _isCreating = true;
+    _error = null;
+    _needsReLogin = false;
+    notifyListeners();
 
     try {
-      final newAnnouncement = await _announcementService.createAnnouncement(
+      // ✅ PERBAIKI: Sesuaikan dengan return type dari service
+      final response = await _announcementService.createAnnouncement(
+        context: context,
         title: title,
         description: description,
         targetAudience: targetAudience,
@@ -58,17 +92,27 @@ class AnnouncementProvider with ChangeNotifier {
         day: day,
       );
 
-      _announcements.insert(0, newAnnouncement);
+      // ✅ Response adalah AnnouncementResponse, bukan Map<String, dynamic>
+      // Tambahkan announcement ke list dari response
+      _announcements.insert(0, response.announcement);
       notifyListeners();
     } catch (e) {
       _error = e.toString();
+
+      if (_error!.contains('Token tidak valid') || _error!.contains('401')) {
+        _needsReLogin = true;
+      }
+
       rethrow;
     } finally {
-      _setLoading(false);
+      _isCreating = false;
+      notifyListeners();
     }
   }
 
+  // ✅ PERBAIKI: Update method signature untuk sesuai dengan service
   Future<void> updateAnnouncement({
+    required BuildContext context, // Ubah dari dynamic ke BuildContext
     required int id,
     required String title,
     required String description,
@@ -76,10 +120,14 @@ class AnnouncementProvider with ChangeNotifier {
     required DateTime date,
     required String day,
   }) async {
-    _setLoading(true);
+    _isUpdating = true;
+    _error = null;
+    _needsReLogin = false;
+    notifyListeners();
 
     try {
       final updatedAnnouncement = await _announcementService.updateAnnouncement(
+        context: context, // ✅ Tambahkan parameter context
         id: id,
         title: title,
         description: description,
@@ -95,34 +143,50 @@ class AnnouncementProvider with ChangeNotifier {
       }
     } catch (e) {
       _error = e.toString();
+
+      if (_error!.contains('Token tidak valid') || _error!.contains('401')) {
+        _needsReLogin = true;
+      }
+
       rethrow;
     } finally {
-      _setLoading(false);
+      _isUpdating = false;
+      notifyListeners();
     }
   }
 
-  Future<void> deleteAnnouncement(int id) async {
-    _setLoading(true);
+  // ✅ PERBAIKI: Update method signature untuk sesuai dengan service
+  Future<void> deleteAnnouncement({
+    required BuildContext context, // Ubah dari dynamic ke BuildContext
+    required int id,
+  }) async {
+    _isDeleting = true;
+    _error = null;
+    _needsReLogin = false;
+    notifyListeners();
 
     try {
-      await _announcementService.deleteAnnouncement(id);
+      // ✅ Sesuaikan dengan service yang mengembalikan DeleteResponse
+      await _announcementService.deleteAnnouncement(context: context, id: id);
+
       _announcements.removeWhere((a) => a.id == id);
       notifyListeners();
     } catch (e) {
       _error = e.toString();
+
+      if (_error!.contains('Token tidak valid') || _error!.contains('401')) {
+        _needsReLogin = true;
+      }
+
       rethrow;
     } finally {
-      _setLoading(false);
+      _isDeleting = false;
+      notifyListeners();
     }
   }
 
-  void _setLoading(bool loading) {
-    _isLoading = loading;
-    notifyListeners();
-  }
-
-  void clearError() {
-    _error = null;
-    notifyListeners();
+  // Helper method untuk cek apakah user adalah pemilik pengumuman
+  bool isAnnouncementOwner(Announcement announcement) {
+    return _currentUserId != null && announcement.createdBy == _currentUserId;
   }
 }

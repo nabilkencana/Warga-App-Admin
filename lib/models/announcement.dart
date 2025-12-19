@@ -1,5 +1,4 @@
 // models/announcement.dart
-
 import 'package:flutter/material.dart';
 
 class Announcement {
@@ -32,7 +31,7 @@ class Announcement {
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
       description: json['description'] ?? '',
-      targetAudience: json['targetAudience'] ?? 'ALL',
+      targetAudience: json['targetAudience'] ?? 'ALL_RESIDENTS',
       date: DateTime.parse(json['date'] ?? DateTime.now().toString()),
       day: json['day'] ?? '',
       createdBy: json['createdBy'] ?? 0,
@@ -44,16 +43,11 @@ class Announcement {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'title': title,
       'description': description,
       'targetAudience': targetAudience,
       'date': date.toIso8601String(),
       'day': day,
-      'createdBy': createdBy,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'admin': admin?.toJson(),
     };
   }
 
@@ -66,41 +60,78 @@ class Announcement {
     if (difference.inHours < 24) return '${difference.inHours}j yang lalu';
     if (difference.inDays < 7) return '${difference.inDays}h yang lalu';
     if (difference.inDays < 30) {
-      return '${(difference.inDays / 7).floor()}minggu yang lalu';
+      return '${(difference.inDays / 7).floor()} minggu yang lalu';
     }
-    return '${(difference.inDays / 30).floor()}bulan yang lalu';
+    return '${(difference.inDays / 30).floor()} bulan yang lalu';
   }
 
   String get formattedDate {
-    return '${date.day}/${date.month}/${date.year}';
+    final List<String> monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${monthNames[date.month - 1]} ${date.year}';
   }
 
   Color get audienceColor {
     switch (targetAudience) {
-      case 'ALL':
-        return Colors.blue;
-      case 'VOLUNTEER':
-        return Colors.green;
+      case 'ALL_RESIDENTS':
+        return Color(0xFF3B82F6); // Blue sesuai backend
       case 'ADMIN':
         return Colors.red;
+      case 'VOLUNTEER':
+        return Colors.green;
       default:
+        if (targetAudience.startsWith('RT_')) {
+          return Colors.orange;
+        }
         return Colors.grey;
     }
   }
 
   String get audienceText {
     switch (targetAudience) {
-      case 'ALL':
-        return 'Semua User';
-      case 'VOLUNTEER':
-        return 'Volunteer';
+      case 'ALL_RESIDENTS':
+        return 'Semua Warga';
       case 'ADMIN':
         return 'Admin';
+      case 'VOLUNTEER':
+        return 'Volunteer';
       default:
+        if (targetAudience.startsWith('RT_')) {
+          return 'RT ${targetAudience.split('_')[1]}';
+        }
         return targetAudience;
     }
   }
+
+  IconData get audienceIcon {
+    switch (targetAudience) {
+      case 'ALL_RESIDENTS':
+        return Icons.people;
+      case 'ADMIN':
+        return Icons.admin_panel_settings;
+      case 'VOLUNTEER':
+        return Icons.volunteer_activism;
+      default:
+        if (targetAudience.startsWith('RT_')) {
+          return Icons.home;
+        }
+        return Icons.announcement;
+    }
+  }
 }
+
 
 class Admin {
   final int id;
@@ -121,3 +152,35 @@ class Admin {
     return {'id': id, 'namaLengkap': namaLengkap, 'email': email};
   }
 }
+
+// Response model untuk create/update
+// ✅ Response model untuk create announcement
+class AnnouncementResponse {
+  final String message;
+  final Announcement announcement;
+
+  AnnouncementResponse({required this.message, required this.announcement});
+
+  factory AnnouncementResponse.fromJson(Map<String, dynamic> json) {
+    return AnnouncementResponse(
+      message: json['message'] ?? '',
+      announcement: Announcement.fromJson(json['announcement'] ?? json),
+    );
+  }
+}
+
+// ✅ Response model untuk delete announcement
+class DeleteResponse {
+  final String message;
+  final String title;
+
+  DeleteResponse({required this.message, required this.title});
+
+  factory DeleteResponse.fromJson(Map<String, dynamic> json) {
+    return DeleteResponse(
+      message: json['message'] ?? '',
+      title: json['title'] ?? '',
+    );
+  }
+}
+

@@ -67,11 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _toggleOtpVisibility() {
-    setState(() {
-      _showPassword = !_showPassword;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -169,14 +164,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: InputDecoration(
                               labelText: 'Kode OTP',
                               prefixIcon: Icon(Icons.lock),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _showPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                                onPressed: _toggleOtpVisibility,
-                              ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
