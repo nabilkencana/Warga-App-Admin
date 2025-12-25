@@ -1,10 +1,13 @@
 // providers/emergency_provider.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/emergency.dart';
 import '../services/emergency_service.dart';
+import '../services/security_websocket_service.dart';
 
 class EmergencyProvider with ChangeNotifier {
   final EmergencyService _emergencyService = EmergencyService();
+  final SecurityWebSocketService _socketService = SecurityWebSocketService();
 
   List<Emergency> _emergencies = [];
   List<Emergency> _filteredEmergencies = [];
@@ -13,12 +16,16 @@ class EmergencyProvider with ChangeNotifier {
   String _selectedFilter = 'Aktif';
   String _selectedType = 'Semua';
   int? _currentUserId;
+  bool _hasAlarm = false;
+  Map<String, dynamic>? _activeAlarm;
 
   List<Emergency> get emergencies => _filteredEmergencies;
   bool get isLoading => _isLoading;
   String? get error => _error;
   String get selectedFilter => _selectedFilter;
   String get selectedType => _selectedType;
+  bool get hasAlarm => _hasAlarm;
+  Map<String, dynamic>? get activeAlarm => _activeAlarm;
 
   final List<String> _statusFilters = [
     'Semua',
@@ -43,6 +50,59 @@ class EmergencyProvider with ChangeNotifier {
   void setCurrentUserId(int? userId) {
     _currentUserId = userId;
     notifyListeners();
+  }
+
+  // Initialize WebSocket for real-time updates
+  void initWebSocket(int? securityId) {
+    if (securityId != null) {
+      _socketService.connect(securityId);
+
+      _socketService.onEmergencyAlarm = (alarmData) {
+        _handleIncomingAlarm(alarmData);
+      };
+
+      _socketService.onEmergencyDispatch = (dispatch) {
+        _handleIncomingDispatch(dispatch);
+      };
+    }
+  }
+
+  void _handleIncomingAlarm(Map<String, dynamic> alarmData) {
+    final emergencyData = alarmData['data'];
+
+    setState(() {
+      _hasAlarm = true;
+      _activeAlarm = emergencyData;
+    });
+
+    // Create emergency object from alarm data
+    final emergency = Emergency(
+      id: emergencyData['emergencyId'] ?? 0,
+      type: emergencyData['emergencyType'] ?? 'Emergency',
+      location: emergencyData['location'],
+      latitude: emergencyData['latitude'],
+      longitude: emergencyData['longitude'],
+      needVolunteer: true,
+      volunteerCount: 0,
+      status: 'ACTIVE',
+      createdAt: DateTime.parse(
+        emergencyData['createdAt'] ?? DateTime.now().toString(),
+      ),
+      updatedAt: DateTime.now(),
+      volunteers: [],
+    );
+
+    // Add to emergencies list
+    _emergencies.insert(0, emergency);
+    _applyFilters();
+
+    notifyListeners();
+  }
+
+  void _handleIncomingDispatch(Map<String, dynamic> dispatch) {
+    // Handle dispatch notification
+    print('Dispatch received: $dispatch');
+    // You can add dispatch handling logic here
   }
 
   Future<void> loadActiveEmergencies() async {
@@ -228,6 +288,17 @@ class EmergencyProvider with ChangeNotifier {
 
   void _setLoading(bool loading) {
     _isLoading = loading;
+    notifyListeners();
+  }
+
+  void setState(VoidCallback fn) {
+    fn();
+    notifyListeners();
+  }
+
+  void clearAlarm() {
+    _hasAlarm = false;
+    _activeAlarm = null;
     notifyListeners();
   }
 

@@ -1,5 +1,4 @@
 // models/emergency.dart
-
 import 'package:flutter/material.dart';
 
 class Emergency {
@@ -12,6 +11,7 @@ class Emergency {
   final bool needVolunteer;
   final int volunteerCount;
   final String status;
+  final String? severity;
   final int? userId;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -27,6 +27,7 @@ class Emergency {
     required this.needVolunteer,
     required this.volunteerCount,
     required this.status,
+    this.severity,
     this.userId,
     required this.createdAt,
     required this.updatedAt,
@@ -44,6 +45,7 @@ class Emergency {
       needVolunteer: json['needVolunteer'] ?? false,
       volunteerCount: json['volunteerCount'] ?? 0,
       status: json['status'] ?? 'ACTIVE',
+      severity: json['severity'],
       userId: json['userId'],
       createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toString()),
       updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toString()),
@@ -66,6 +68,7 @@ class Emergency {
       'needVolunteer': needVolunteer,
       'volunteerCount': volunteerCount,
       'status': status,
+      'severity': severity,
       'userId': userId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
@@ -114,6 +117,36 @@ class Emergency {
         return 'Menunggu';
       default:
         return status;
+    }
+  }
+
+  Color get severityColor {
+    switch (severity?.toUpperCase()) {
+      case 'CRITICAL':
+        return Colors.red;
+      case 'HIGH':
+        return Colors.orange;
+      case 'MEDIUM':
+        return Colors.yellow;
+      case 'LOW':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String get severityText {
+    switch (severity?.toUpperCase()) {
+      case 'CRITICAL':
+        return 'Kritis';
+      case 'HIGH':
+        return 'Tinggi';
+      case 'MEDIUM':
+        return 'Sedang';
+      case 'LOW':
+        return 'Rendah';
+      default:
+        return 'Tidak diketahui';
     }
   }
 

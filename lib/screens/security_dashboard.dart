@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:audioplayers/audioplayers.dart';
+import 'package:wargaapp_admin/services/alarm_service.dart';
 import '../providers/auth_provider.dart';
 import '../config/api_config.dart';
+import '../services/security_websocket_service.dart';
 
 class SecurityDashboard extends StatefulWidget {
   const SecurityDashboard({Key? key}) : super(key: key);
@@ -21,6 +24,13 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
   Map<String, dynamic>? _securityInfo;
   Map<String, dynamic>? _stats;
 
+  // WebSocket dan Alarm
+  final SecurityWebSocketService _socketService = SecurityWebSocketService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _hasAlarm = false;
+  bool _isConnected = false;
+  Map<String, dynamic>? _activeAlarm;
+
   @override
   void initState() {
     super.initState();
@@ -36,9 +46,275 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
       print('🎭 Original role: ${authProvider.originalRole}');
     });
 
-    _verifySecurityId(); // Verifikasi dulu
+    _socketService.onEmergencyAlarm = _handleEmergencyAlarm;
+
+    _socketService.onDisconnected = (reason) {
+      setState(() => _isConnected = false);
+      _showSnackbar('WebSocket disconnected: $reason');
+    };
+
+    _socketService.onError = (error) {
+      _showSnackbar('WebSocket error: $error');
+    };
+    _verifySecurityId();
+    _initWebSocket(); // Initialize WebSocket
     _loadDashboardData();
     _startPeriodicUpdates();
+  }
+
+  @override
+  void dispose() {
+    _socketService.disconnect();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _initWebSocket() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.id;
+
+    if (userId == null) {
+      print('❌ Cannot initialize WebSocket: User ID is null');
+      return;
+    }
+
+    // Cari security ID berdasarkan user ID
+    _getSecurityIdFromUserId(userId).then((securityId) {
+      if (securityId != null) {
+        _connectToWebSocket(securityId);
+      } else {
+        print(
+          '❌ Cannot initialize WebSocket: Security ID not found for user $userId',
+        );
+      }
+    });
+  }
+
+  Future<int?> _getSecurityIdFromUserId(int userId) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/security/user/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return data['data']['id'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('❌ Error getting security ID: $e');
+      return null;
+    }
+  }
+
+  void _connectToWebSocket(int securityId) {
+    _socketService.connect(securityId);
+
+    // Setup event handlers
+    _socketService.onConnected = (data) {
+      setState(() {
+        _isConnected = true;
+      });
+      print('✅ WebSocket connected: ${data['securityName']}');
+    };
+
+    _socketService.onEmergencyAlarm = (emergency) {
+      setState(() {
+        _hasAlarm = true;
+        _activeAlarm = emergency;
+      });
+
+      _playAlarmSound(); // ⬅️ INI YANG KURANG
+
+      _showAlarmDialog(emergency);
+    };
+
+    _socketService.onEmergencyDispatch = (dispatch) {
+      _handleEmergencyDispatch(dispatch);
+    };
+
+    _socketService.onDisconnected = (reason) {
+      setState(() {
+        _isConnected = false;
+      });
+      _showSnackbar('WebSocket disconnected: $reason');
+    };
+
+    _socketService.onError = (error) {
+      _showSnackbar('WebSocket error: $error');
+    };
+  }
+
+  void _handleEmergencyAlarm(Map<String, dynamic> emergency) {
+    setState(() {
+      _hasAlarm = true;
+      _activeAlarm = emergency;
+
+      _emergencies.insert(0, {
+        'id': emergency['emergencyId'],
+        'type': emergency['emergencyType'],
+        'severity': emergency['severity'],
+        'location': emergency['location'],
+        'createdAt': emergency['createdAt'],
+        'emergencyResponses': [],
+      });
+    });
+
+    AlarmService.play(); // ⬅️ nanti kita buat
+
+    _showAlarmDialog(emergency);
+
+    print('🚨 EMERGENCY ALARM RECEIVED');
+  }
+
+  void _handleEmergencyDispatch(Map<String, dynamic> dispatch) {
+    final data = dispatch['data'];
+
+    // Check if dispatched to this security
+    if (data['securityId'] != null) {
+      // Show dispatch notification
+      _showDispatchNotification(data);
+      print('📍 DISPATCH RECEIVED: Emergency #${data['emergencyId']}');
+    }
+  }
+
+  Future<void> _playAlarmSound() async {
+    try {
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      await _audioPlayer.setVolume(1.0);
+      await _audioPlayer.play(AssetSource('assets/sounds/emergency_alarm.mp3'));
+    } catch (e) {
+      print('Error playing alarm sound: $e');
+      // Fallback to beep sound
+      _audioPlayer.play(AssetSource('assets/sounds/notification.mp3'));
+    }
+  }
+
+  void _showAlarmDialog(Map<String, dynamic> emergency) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.red,
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.white, size: 40),
+            SizedBox(width: 10),
+            Text(
+              '🚨 EMERGENCY ALERT',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              emergency['emergencyType'] ?? 'Emergency',
+              style: TextStyle(color: Colors.white, fontSize: 20),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Location: ${emergency['location'] ?? 'Unknown'}',
+              style: TextStyle(color: Colors.white),
+            ),
+            Text(
+              'Severity: ${emergency['severity'] ?? 'MEDIUM'}',
+              style: TextStyle(color: Colors.white),
+            ),
+            Text(
+              'Reporter: ${emergency['reporterName'] ?? 'Anonymous'}',
+              style: TextStyle(color: Colors.white),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'ACTION REQUIRED',
+              style: TextStyle(
+                color: Colors.yellow,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: Text('ACCEPT', style: TextStyle(color: Colors.white)),
+            onPressed: () {
+              Navigator.pop(context);
+              _acceptEmergency(emergency['emergencyId']);
+            },
+          ),
+          TextButton(
+            child: Text('VIEW DETAILS', style: TextStyle(color: Colors.white)),
+            onPressed: () {
+              Navigator.pop(context);
+              _showEmergencyDetails(emergency);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _acceptEmergency(int emergencyId) {
+    _socketService.acceptEmergency(emergencyId);
+
+    AlarmService.stop(); // ⬅️ PENTING
+
+    setState(() {
+      _hasAlarm = false;
+      _activeAlarm = null;
+    });
+  }
+
+  void _showDispatchNotification(Map<String, dynamic> dispatch) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.near_me, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('DISPATCH ORDER'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('You have been dispatched to:'),
+            SizedBox(height: 10),
+            Text(
+              dispatch['location'] ?? 'Unknown location',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 10),
+            Text('Distance: ${dispatch['distance'] ?? 'Unknown'}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: Text('ACKNOWLEDGE'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadDashboardData() async {
@@ -120,6 +396,113 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
     });
   }
 
+  // ALARM BANNER WIDGET
+  Widget _buildAlarmBanner() {
+    if (!_hasAlarm) return SizedBox();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.red,
+      child: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.white),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ACTIVE EMERGENCY',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  _activeAlarm?['emergencyType'] ?? 'Emergency',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            child: Text('ACCEPT'),
+            onPressed: () {
+              if (_activeAlarm != null) {
+                _acceptEmergency(_activeAlarm!['emergencyId']);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // WEB SOCKET CONNECTION INDICATOR
+  Widget _buildConnectionIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _isConnected ? Colors.green : Colors.red,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isConnected ? Icons.wifi : Icons.wifi_off,
+            color: Colors.white,
+            size: 12,
+          ),
+          SizedBox(width: 4),
+          Text(
+            _isConnected ? 'LIVE' : 'OFFLINE',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // REST OF YOUR EXISTING METHODS...
+  Future<void> _verifySecurityId() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.token;
+      final userId = authProvider.user?.id;
+
+      if (token == null || userId == null) {
+        print('❌ No token or user ID');
+        return;
+      }
+
+      print('🔍 Verifying if user $userId is security...');
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/security/user/$userId'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode.toString().startsWith('2')) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          print('✅ User is security with ID: ${data['data']['id']}');
+        } else {
+          print('❌ User is not security personnel');
+          _showSnackbar('Anda belum terdaftar sebagai security', isError: true);
+        }
+      } else if (response.statusCode == 404) {
+        print('❌ User not found in security database');
+        _showSnackbar('Anda belum terdaftar sebagai security', isError: true);
+      }
+    } catch (error) {
+      print('❌ Error verifying security: $error');
+    }
+  }
+
   Future<void> _checkIn() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -131,7 +514,6 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
         return;
       }
 
-      // Show loading
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -149,7 +531,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
           ),
         ),
       );
-      // Gunakan endpoint user-based
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/security/check-in/user'),
         headers: {
@@ -176,46 +558,6 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
     }
   }
 
-  // Tambahkan fungsi untuk verifikasi security ID
-  Future<void> _verifySecurityId() async {
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final token = authProvider.token;
-      final userId = authProvider.user?.id;
-
-      if (token == null || userId == null) {
-        print('❌ No token or user ID');
-        return;
-      }
-
-      print('🔍 Verifying if user $userId is security...');
-
-      // Cek apakah user adalah security
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/security/user/$userId'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      print('Verification response: ${response.statusCode}');
-      print('Verification body: ${response.body}');
-
-      if (response.statusCode.toString().startsWith('2')) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          print('✅ User is security with ID: ${data['data']['id']}');
-        } else {
-          print('❌ User is not security personnel');
-          _showSnackbar('Anda belum terdaftar sebagai security', isError: true);
-        }
-      } else if (response.statusCode == 404) {
-        print('❌ User not found in security database');
-        _showSnackbar('Anda belum terdaftar sebagai security', isError: true);
-      }
-    } catch (error) {
-      print('❌ Error verifying security: $error');
-    }
-  }
-
   Future<void> _checkOut() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -227,7 +569,6 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
         return;
       }
 
-      // Confirm dialog
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -251,15 +592,17 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
 
       if (confirm != true) return;
 
-      // Show loading
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          title: Text('Check-out', style: TextStyle(fontWeight: FontWeight.bold),),
+          title: Text(
+            'Check-out',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: Row(
             children: [
-              CircularProgressIndicator(color: Colors.grey[700],),
+              CircularProgressIndicator(color: Colors.grey[700]),
               SizedBox(width: 16),
               Text('Memproses check-out...'),
             ],
@@ -267,7 +610,6 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
         ),
       );
 
-      // Gunakan endpoint user-based
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/security/check-out/user'),
         headers: {
@@ -302,7 +644,6 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
 
       if (token == null || userId == null) return;
 
-      // Simulate getting location
       const latitude = '-6.2088';
       const longitude = '106.8456';
 
@@ -399,7 +740,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
     }
   }
 
-  Future<void> _acceptEmergency(int emergencyId) async {
+  Future<void> _acceptEmergencyApi(int emergencyId) async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final token = authProvider.token;
@@ -485,6 +826,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
             ),
           ),
           backgroundColor: Colors.green.shade800,
+          actions: [_buildConnectionIndicator()],
         ),
         body: _buildLoadingScreen(),
       );
@@ -508,29 +850,31 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
         ),
         backgroundColor: Colors.green.shade800,
         actions: [
+          _buildConnectionIndicator(),
+          SizedBox(width: 8),
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadDashboardData,
           ),
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
+            icon: Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
               final confirm = await showDialog<bool>(
                 context: context,
                 barrierDismissible: false,
                 builder: (context) {
                   return AlertDialog(
-                    title: const Text(
+                    title: Text(
                       'Konfirmasi Logout',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    content: const Text(
+                    content: Text(
                       'Apakah kamu yakin ingin keluar dari akun ini?',
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text(
+                        child: Text(
                           'Batal',
                           style: TextStyle(color: Colors.black),
                         ),
@@ -540,7 +884,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
                           backgroundColor: Colors.red,
                         ),
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text(
+                        child: Text(
                           'Keluar',
                           style: TextStyle(color: Colors.white),
                         ),
@@ -557,375 +901,386 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header with Security Info
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: Colors.green.shade100,
-                          child: Icon(
-                            authProvider.originalRole == 'SATPAM'
-                                ? Icons.security
-                                : Icons.person_pin_circle,
-                            color: Colors.green.shade800,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
+        children: [
+          // Alarm Banner
+          _buildAlarmBanner(),
+
+          // Main Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header with Security Info
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Text(
-                                _securityInfo?['nama'] ??
-                                    user?.name ??
-                                    'Security',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                              CircleAvatar(
+                                backgroundColor: Colors.green.shade100,
+                                child: Icon(
+                                  authProvider.originalRole == 'SATPAM'
+                                      ? Icons.security
+                                      : Icons.person_pin_circle,
+                                  color: Colors.green.shade800,
                                 ),
                               ),
-                              Text(
-                                authProvider.originalRole == 'SATPAM'
-                                    ? 'ID: SATPAM-${user?.id.toString().padLeft(4, '0')}'
-                                    : 'ID: SEC-${user?.id.toString().padLeft(4, '0')}',
-                                style: TextStyle(color: Colors.grey.shade600),
-                              ),
-                              Text(
-                                'Shift: ${_getShiftName(shift)}',
-                                style: TextStyle(
-                                  color: Colors.blue.shade600,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _securityInfo?['nama'] ??
+                                          user?.name ??
+                                          'Security',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      authProvider.originalRole == 'SATPAM'
+                                          ? 'ID: SATPAM-${user?.id.toString().padLeft(4, '0')}'
+                                          : 'ID: SEC-${user?.id.toString().padLeft(4, '0')}',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Shift: ${_getShiftName(shift)}',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade600,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Divider(),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildStatusCard(
-                          icon: Icons.access_time,
-                          label: 'Status',
-                          value: isOnDuty ? 'On Duty' : 'Off Duty',
-                          color: isOnDuty ? Colors.green : Colors.orange,
-                        ),
-                        _buildStatusCard(
-                          icon: Icons.emergency,
-                          label: 'Emergency',
-                          value: emergencyCount.toString(),
-                          color: Colors.red,
-                        ),
-                        _buildStatusCard(
-                          icon: _getShiftIcon(shift),
-                          label: 'Shift',
-                          value: _getShiftName(shift),
-                          color: Colors.blue,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Duty Control
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Kontrol Tugas',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                          SizedBox(height: 16),
+                          Divider(),
+                          SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildStatusCard(
+                                icon: Icons.access_time,
+                                label: 'Status',
+                                value: isOnDuty ? 'On Duty' : 'Off Duty',
+                                color: isOnDuty ? Colors.green : Colors.orange,
+                              ),
+                              _buildStatusCard(
+                                icon: Icons.emergency,
+                                label: 'Emergency',
+                                value: emergencyCount.toString(),
+                                color: Colors.red,
+                              ),
+                              _buildStatusCard(
+                                icon: _getShiftIcon(shift),
+                                label: 'Shift',
+                                value: _getShiftName(shift),
+                                color: Colors.blue,
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: isOnDuty
-                                ? null
-                                : () {
-                                    if (isOnDuty) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Anda sudah dalam tugas',
-                                          ),
-                                          backgroundColor:
-                                              Colors.orange.shade600,
-                                        ),
-                                      );
-                                      return;
-                                    }
+                  ),
+                  SizedBox(height: 20),
 
-                                    _checkIn();
-                                  },
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Mulai Tugas'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade700,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: !isOnDuty
-                                ? null
-                                : () {
-                                    _checkOut();
-                                  },
-                            icon: Icon(Icons.stop),
-                            label: Text('Selesai'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red.shade700,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: !isOnDuty
-                                ? null
-                                : () {
-                                    _startPatrol();
-                                  },
-                            icon: Icon(Icons.directions_walk),
-                            label: Text('Mulai Patroli'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade700,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: !isOnDuty
-                                ? null
-                                : () {
-                                    _endPatrol();
-                                  },
-                            icon: Icon(Icons.directions_walk),
-                            label: Text('Akhiri Patroli'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange.shade700,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Emergency Section
-            if (_emergencies.isNotEmpty)
-              Card(
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // Duty Control
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Emergency Aktif (${_emergencies.length})',
+                            'Kontrol Tugas',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Chip(
-                            label: Text('Ditugaskan: $_assignedEmergencies'),
-                            backgroundColor: Colors.red.shade100,
+                          SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: isOnDuty
+                                      ? null
+                                      : () {
+                                          if (isOnDuty) {
+                                            _showSnackbar(
+                                              'Anda sudah dalam tugas',
+                                            );
+                                            return;
+                                          }
+                                          _checkIn();
+                                        },
+                                  icon: Icon(Icons.play_arrow),
+                                  label: Text('Mulai Tugas'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green.shade700,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: !isOnDuty
+                                      ? null
+                                      : () {
+                                          _checkOut();
+                                        },
+                                  icon: Icon(Icons.stop),
+                                  label: Text('Selesai'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red.shade700,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: !isOnDuty
+                                      ? null
+                                      : () {
+                                          _startPatrol();
+                                        },
+                                  icon: Icon(Icons.directions_walk),
+                                  label: Text('Mulai Patroli'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: !isOnDuty
+                                      ? null
+                                      : () {
+                                          _endPatrol();
+                                        },
+                                  icon: Icon(Icons.directions_walk),
+                                  label: Text('Akhiri Patroli'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange.shade700,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      ..._emergencies.map((emergency) {
-                        return _buildEmergencyCard(emergency);
-                      }).toList(),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            if (_emergencies.isNotEmpty) const SizedBox(height: 20),
+                  SizedBox(height: 20),
 
-            // Quick Actions
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Aksi Cepat',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                  // Emergency Section
+                  if (_emergencies.isNotEmpty)
+                    Card(
+                      elevation: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Emergency Aktif (${_emergencies.length})',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Chip(
+                                  label: Text(
+                                    'Ditugaskan: $_assignedEmergencies',
+                                  ),
+                                  backgroundColor: Colors.red.shade100,
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12),
+                            ..._emergencies.map((emergency) {
+                              return _buildEmergencyCard(emergency);
+                            }).toList(),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.5,
-                      children: [
-                        _buildQuickAction(
-                          icon: Icons.location_on,
-                          label: 'Update Lokasi',
-                          color: Colors.blue.shade700,
-                          onTap: _updateLocation,
-                        ),
-                        _buildQuickAction(
-                          icon: Icons.assignment,
-                          label: 'Laporan Insiden',
-                          color: Colors.orange.shade700,
-                          onTap: () => _showReportDialog(),
-                        ),
-                        _buildQuickAction(
-                          icon: Icons.emergency,
-                          label: 'Emergency',
-                          color: Colors.red.shade700,
-                          onTap: () => _showEmergencyDialog(),
-                        ),
-                        _buildQuickAction(
-                          icon: Icons.analytics,
-                          label: 'Statistik',
-                          color: Colors.purple.shade700,
-                          onTap: () => _showStatsDialog(),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+                  if (_emergencies.isNotEmpty) SizedBox(height: 20),
 
-            // Recent Activities
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Aktivitas Terbaru',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                  // Quick Actions
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Aksi Cepat',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.refresh),
-                          onPressed: () async {
-                            final authProvider = Provider.of<AuthProvider>(
-                              context,
-                              listen: false,
-                            );
-                            final token = authProvider.token;
-                            final userId = authProvider.user?.id;
-
-                            if (token != null && userId != null) {
-                              final securityResponse = await http.get(
-                                Uri.parse(
-                                  '${ApiConfig.baseUrl}/security/user/$userId',
-                                ),
-                                headers: {
-                                  'Authorization': 'Bearer $token',
-                                  'Content-Type': 'application/json',
-                                },
-                              );
-
-                              if (securityResponse.statusCode
-                                  .toString()
-                                  .startsWith('2')) {
-                                json.decode(securityResponse.body);
-
-                                await _loadRecentLogs();
-                              }
-                            }
-                          },
-                        ),
-                      ],
+                          SizedBox(height: 12),
+                          GridView.count(
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.5,
+                            children: [
+                              _buildQuickAction(
+                                icon: Icons.location_on,
+                                label: 'Update Lokasi',
+                                color: Colors.blue.shade700,
+                                onTap: _updateLocation,
+                              ),
+                              _buildQuickAction(
+                                icon: Icons.assignment,
+                                label: 'Laporan Insiden',
+                                color: Colors.orange.shade700,
+                                onTap: () => _showReportDialog(),
+                              ),
+                              _buildQuickAction(
+                                icon: Icons.emergency,
+                                label: 'Emergency',
+                                color: Colors.red.shade700,
+                                onTap: () => _showEmergencyDialog(),
+                              ),
+                              _buildQuickAction(
+                                icon: Icons.analytics,
+                                label: 'Statistik',
+                                color: Colors.purple.shade700,
+                                onTap: () => _showStatsDialog(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    if (_recentLogs.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16.0),
-                        child: Text(
-                          'Tidak ada aktivitas terbaru',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                      )
-                    else
-                      ..._recentLogs.map((log) {
-                        return _buildActivityItem(log);
-                      }).toList(),
-                  ],
-                ),
+                  ),
+                  SizedBox(height: 20),
+
+                  // Recent Activities
+                  Card(
+                    elevation: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Aktivitas Terbaru',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.refresh),
+                                onPressed: () async {
+                                  final authProvider =
+                                      Provider.of<AuthProvider>(
+                                        context,
+                                        listen: false,
+                                      );
+                                  final token = authProvider.token;
+                                  final userId = authProvider.user?.id;
+
+                                  if (token != null && userId != null) {
+                                    await _loadRecentLogs();
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                          if (_recentLogs.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 16.0,
+                              ),
+                              child: Text(
+                                'Tidak ada aktivitas terbaru',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                            )
+                          else
+                            ..._recentLogs.map((log) {
+                              return _buildActivityItem(log);
+                            }).toList(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+
+      // Floating Action Button for Test Alarm
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.warning , color: Colors.white,),
+        backgroundColor: _hasAlarm ? Colors.red : Colors.blue,
+        onPressed: () {
+          // Test alarm via WebSocket
+          _socketService.testAlarm();
+        },
       ),
     );
   }
+
+  // EXISTING HELPER METHODS...
 
   Widget _buildEmergencyCard(Map<String, dynamic> emergency) {
     final type = emergency['type'] ?? 'UNKNOWN';
@@ -966,7 +1321,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
                 backgroundColor: Colors.green.shade100,
               )
             : ElevatedButton(
-                onPressed: () => _acceptEmergency(emergency['id']),
+                onPressed: () => _acceptEmergencyApi(emergency['id']),
                 child: Text('Terima'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
@@ -986,12 +1341,12 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
     return Column(
       children: [
         Icon(icon, color: color, size: 32),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           label,
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
@@ -1016,15 +1371,13 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-        splashColor: Colors.transparent,
-        highlightColor: Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: color, size: 32),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 label,
                 textAlign: TextAlign.center,
@@ -1086,7 +1439,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
             backgroundColor: color.withOpacity(0.1),
             child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1137,7 +1490,6 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Show emergency list
               _showEmergencyList();
             },
             child: Text('Lihat Daftar', style: TextStyle(color: Colors.red)),
@@ -1160,7 +1512,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
               'Emergency Aktif',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Expanded(
               child: _emergencies.isEmpty
                   ? Center(child: Text('Tidak ada emergency aktif'))
@@ -1180,13 +1532,13 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
 
   void _showReportDialog() {
     final textController = TextEditingController();
-
     final _formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text(
+        title: Text(
           'Buat Laporan Insiden',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
@@ -1201,7 +1553,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
               }
               return null;
             },
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Masukkan detail insiden...',
               border: OutlineInputBorder(),
             ),
@@ -1219,7 +1571,7 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Kirim', style: TextStyle(color: Colors.orange)),
+            child: Text('Kirim', style: TextStyle(color: Colors.orange)),
           ),
         ],
       ),
@@ -1285,5 +1637,76 @@ class _SecurityDashboardState extends State<SecurityDashboard> {
         ],
       ),
     );
+  }
+
+  void _showEmergencyDetails(Map<String, dynamic> emergency) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Emergency Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow(
+                'Type',
+                emergency['emergencyType'] ?? 'Emergency',
+              ),
+              _buildDetailRow('Location', emergency['location'] ?? 'Unknown'),
+              _buildDetailRow('Severity', emergency['severity'] ?? 'MEDIUM'),
+              _buildDetailRow(
+                'Reporter',
+                emergency['reporterName'] ?? 'Anonymous',
+              ),
+              _buildDetailRow('Phone', emergency['reporterPhone'] ?? 'N/A'),
+              _buildDetailRow('Time', _formatTime(emergency['createdAt'])),
+              SizedBox(height: 20),
+              Text(
+                'Coordinates:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text('Lat: ${emergency['latitude'] ?? 'N/A'}'),
+              Text('Lng: ${emergency['longitude'] ?? 'N/A'}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: Text('CLOSE'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: Text('ACCEPT EMERGENCY'),
+            onPressed: () {
+              Navigator.pop(context);
+              _acceptEmergency(emergency['emergencyId']);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label: ', style: TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(String? timeString) {
+    if (timeString == null) return 'N/A';
+    try {
+      final time = DateTime.parse(timeString);
+      return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return 'N/A';
+    }
   }
 }

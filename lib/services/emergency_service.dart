@@ -310,6 +310,24 @@ class EmergencyService {
     }
   }
 
+  Future<void> resolveEmergency(int id) async {
+    try {
+      await updateStatus(id, 'RESOLVED');
+    } catch (e) {
+      print('Error resolving emergency: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> cancelEmergency(int id) async {
+    try {
+      await updateStatus(id, 'CANCELLED');
+    } catch (e) {
+      print('Error canceling emergency: $e');
+      rethrow;
+    }
+  }
+
   // Get available emergency types
   Future<List<String>> getEmergencyTypes() async {
     return [
