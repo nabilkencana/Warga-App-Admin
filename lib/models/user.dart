@@ -30,7 +30,7 @@ class User {
   final String? kkVerificationStatus;
   final String? kkRejectionReason;
   final DateTime? kkVerifiedAt;
-  final String? kkVerifiedBy;
+  final int? kkVerifiedBy;
   final String? kkPublicId;
 
   User({
@@ -104,7 +104,7 @@ class User {
       kkVerifiedAt: json['kkVerifiedAt'] != null
           ? DateTime.parse(json['kkVerifiedAt'])
           : null,
-      kkVerifiedBy: json['kkVerifiedBy'],
+      kkVerifiedBy: json['kkVerifiedBy'] as int?,
       kkPublicId: json['kkFilePublicId'],
     );
   }
@@ -183,7 +183,7 @@ class User {
     String? kkVerificationStatus,
     String? kkRejectionReason,
     DateTime? kkVerifiedAt,
-    String? kkVerifiedBy,
+    int? kkVerifiedBy,
     String? kkPublicId,
   }) {
     return User(

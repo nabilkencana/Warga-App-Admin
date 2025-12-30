@@ -19,9 +19,12 @@ import 'providers/admin_provider.dart';
 import 'providers/announcement_provider.dart';
 import 'providers/bill_provider.dart';
 import 'services/admin_service.dart';
+import 'package:intl/date_symbol_data_local.dart'; // Import ini
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Initialize date formatting for Indonesian locale
+  await initializeDateFormatting('id_ID', null);
   runApp(MyApp());
 }
 

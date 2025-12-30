@@ -1,6 +1,7 @@
 // services/user_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 
 class UserService {
@@ -17,9 +18,10 @@ class UserService {
   }
 
   Future<String?> _getToken() async {
-    // TODO: Ambil token dari shared preferences
-    return null;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token'); // HARUS ADA ISINYA
   }
+
 
   Future<User> getUserById(int id) async {
     try {
@@ -30,6 +32,11 @@ class UserService {
 
       if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
+
+        data.forEach((key, value) {
+          print('$key => ${value.runtimeType}');
+        });
+
 
         // Debug: Print struktur response
         print('=== DEBUG USER RESPONSE ===');
@@ -73,18 +80,23 @@ class UserService {
     String? rejectionReason,
   }) async {
     try {
-      final response = await http.patch(
+      final response = await http.put(
         Uri.parse('$baseUrl/profile/admin/verify-kk/$userId'),
         headers: await _getHeaders(),
         body: jsonEncode({
-          'isApproved': isApproved,
+          'verified': isApproved,
           'rejectionReason': rejectionReason,
         }),
+
       );
 
-      if (response.statusCode.toString().startsWith('2')) {
+      // ✅ YANG BENAR
+      if (!response.statusCode.toString().startsWith('2')) {
         throw Exception('Failed to verify KK document: ${response.statusCode}');
       }
+
+      // OPTIONAL DEBUG
+      print('KK VERIFY SUCCESS: ${response.body}');
     } catch (e) {
       throw Exception('Error verifying KK: $e');
     }
@@ -297,21 +309,41 @@ class UserService {
     }
   }
 
+  // services/user_service.dart - Fungsi updateUserRole
   Future<User> updateUserRole(int id, String role) async {
     try {
+      print('🔵 DEBUG: Updating role for user $id to $role');
+
+      final url = '$baseUrl/users/$id/role';
+      print('🔵 DEBUG: URL: $url');
+
+      final headers = await _getHeaders();
+      print('🔵 DEBUG: Headers: $headers');
+
+      final body = json.encode({'role': role});
+      print('🔵 DEBUG: Request body: $body');
+
       final response = await http.put(
-        Uri.parse('$baseUrl/users/$id/role'),
-        headers: await _getHeaders(),
-        body: json.encode({'role': role}),
+        Uri.parse(url),
+        headers: headers,
+        body: body,
       );
+
+      print('🔵 DEBUG: Response status: ${response.statusCode}');
+      print('🔵 DEBUG: Response body: ${response.body}');
 
       if (response.statusCode.toString().startsWith('2')) {
         final data = json.decode(response.body);
+        print('🟢 DEBUG: Role update successful: $data');
         return User.fromJson(data);
       } else {
-        throw Exception('Failed to update role: ${response.statusCode}');
+        final errorMsg =
+            'Failed to update role: ${response.statusCode} - ${response.body}';
+        print('🔴 DEBUG: $errorMsg');
+        throw Exception(errorMsg);
       }
     } catch (e) {
+      print('🔴 DEBUG: Exception in updateUserRole: $e');
       throw Exception('Failed to update role: $e');
     }
   }
@@ -364,9 +396,7 @@ class UserService {
         if (search != null && search.isNotEmpty) 'search': search,
       };
 
-      final uri = Uri.parse(
-        '$baseUrl/users',
-      ).replace(queryParameters: params);
+      final uri = Uri.parse('$baseUrl/users').replace(queryParameters: params);
 
       final response = await http.get(uri, headers: await _getHeaders());
 

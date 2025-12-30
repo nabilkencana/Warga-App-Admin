@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/report.dart';
 
 class ReportService {
@@ -25,8 +26,8 @@ class ReportService {
 
   Future<String?> _getToken() async {
     // Implement token retrieval from shared preferences or secure storage
-    // Contoh: return await SharedPreferences.getInstance().then((prefs) => prefs.getString('token'));
-    return null; // Replace with actual token retrieval
+    return await SharedPreferences.getInstance().then((prefs) => prefs.getString('token'));
+    // return null; // Replace with actual token retrieval
   }
 
   Future<ApiResponse<List<Report>>> getReports({

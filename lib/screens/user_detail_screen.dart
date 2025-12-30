@@ -19,6 +19,7 @@ class UserDetailScreen extends StatefulWidget {
 class _UserDetailScreenState extends State<UserDetailScreen> {
   late Future<Map<String, dynamic>> _userDataFuture;
   final ImagePicker _picker = ImagePicker();
+  late User _currentUser;
 
   @override
   void initState() {
@@ -301,7 +302,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   }
 
   // 🎯 Verification Info Widget - FIXED
-  Widget _buildVerificationInfo(DateTime verifiedAt, String? verifiedBy) {
+  Widget _buildVerificationInfo(DateTime verifiedAt, int? verifiedBy) {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1346,46 +1347,981 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   }
 
   void _showEditDialog(BuildContext context) {
-    // ... (sama seperti sebelumnya, tidak berubah)
-    // [Kode edit dialog tetap sama]
+    final _formKey = GlobalKey<FormState>();
+    final _namaController = TextEditingController(
+      text: _currentUser.namaLengkap,
+    );
+    final _emailController = TextEditingController(text: _currentUser.email);
+    final _bioController = TextEditingController(text: _currentUser.bio ?? '');
+    final _phoneController = TextEditingController(
+      text: _currentUser.nomorTelepon ?? '',
+    );
+    final _addressController = TextEditingController(
+      text: _currentUser.alamat ?? '',
+    );
+    final _cityController = TextEditingController(
+      text: _currentUser.kota ?? '',
+    );
+    final _nikController = TextEditingController(text: _currentUser.nik ?? '');
+    final _instagramController = TextEditingController(
+      text: _currentUser.instagram ?? '',
+    );
+    final _facebookController = TextEditingController(
+      text: _currentUser.facebook ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: Colors.blue[800]),
+            SizedBox(width: 8),
+            Text('Edit Profile'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _namaController,
+                  decoration: InputDecoration(
+                    labelText: 'Nama Lengkap',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Nama lengkap harus diisi';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email harus diisi';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Format email tidak valid';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _bioController,
+                  decoration: InputDecoration(
+                    labelText: 'Bio',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: InputDecoration(
+                    labelText: 'Nomor Telepon',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _nikController,
+                  decoration: InputDecoration(
+                    labelText: 'NIK',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _instagramController,
+                  decoration: InputDecoration(
+                    labelText: 'Instagram',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _facebookController,
+                  decoration: InputDecoration(
+                    labelText: 'Facebook',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _addressController,
+                  decoration: InputDecoration(
+                    labelText: 'Alamat',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _cityController,
+                  decoration: InputDecoration(
+                    labelText: 'Kota',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (_formKey.currentState!.validate()) {
+                try {
+                  final updateData = {
+                    'namaLengkap': _namaController.text,
+                    'email': _emailController.text,
+                    'bio': _bioController.text.isNotEmpty
+                        ? _bioController.text
+                        : null,
+                    'nomorTelepon': _phoneController.text.isNotEmpty
+                        ? _phoneController.text
+                        : null,
+                    'alamat': _addressController.text.isNotEmpty
+                        ? _addressController.text
+                        : null,
+                    'kota': _cityController.text.isNotEmpty
+                        ? _cityController.text
+                        : null,
+                    'nik': _nikController.text.isNotEmpty
+                        ? _nikController.text
+                        : null,
+                    'instagram': _instagramController.text.isNotEmpty
+                        ? _instagramController.text
+                        : null,
+                    'facebook': _facebookController.text.isNotEmpty
+                        ? _facebookController.text
+                        : null,
+                  };
+
+                  // Remove null values
+                  updateData.removeWhere((key, value) => value == null);
+
+                  await widget.userService.updateUserProfile(
+                    _currentUser.id,
+                    updateData,
+                  );
+                  _refreshData();
+                  Navigator.pop(context);
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Profile berhasil diperbarui')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal memperbarui profile: $e')),
+                  );
+                }
+              }
+            },
+            child: Text('Simpan'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMessageDialog(BuildContext context, User user) {
-    // ... (sama seperti sebelumnya, tidak berubah)
+    final _messageController = TextEditingController();
+    final _formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header dengan overflow handling
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.message_outlined,
+                        color: Theme.of(context).primaryColor,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Kirim Pesan ke ${user.namaLengkap}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // Subtitle informasi penerima
+                  if (user.nomorTelepon != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 36),
+                      child: Text(
+                        'Ke: ${user.nomorTelepon}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+                  const Divider(height: 1),
+                  const SizedBox(height: 20),
+
+                  // Form pesan
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Isi Pesan',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _messageController,
+                          decoration: InputDecoration(
+                            hintText: 'Ketik pesan Anda di sini...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                          maxLines: 6,
+                          minLines: 4,
+                          maxLength: 500,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Pesan tidak boleh kosong';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_messageController.text.length}/500 karakter',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: Colors.grey[300]!),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            'BATAL',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (_formKey.currentState?.validate() ?? false) {
+                              try {
+                                // Tampilkan loading
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+
+                                // Simulasi delay pengiriman
+                                await Future.delayed(
+                                  const Duration(seconds: 1),
+                                );
+
+                                Navigator.pop(context); // Tutup loading
+                                Navigator.pop(context); // Tutup dialog pesan
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text('Pesan berhasil dikirim'),
+                                      ],
+                                    ),
+                                    backgroundColor: Colors.green,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                Navigator.pop(
+                                  context,
+                                ); // Tutup loading jika error
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text('Gagal mengirim: ${e.toString()}'),
+                                      ],
+                                    ),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'KIRIM',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showCallDialog(BuildContext context, String? phoneNumber) {
-    // ... (sama seperti sebelumnya, tidak berubah)
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.phone, color: Colors.blue[800]),
+            SizedBox(width: 8),
+            Text('Hubungi'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (phoneNumber == null)
+              Text('Nomor telepon tidak tersedia.')
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Hubungi $phoneNumber?'),
+                  SizedBox(height: 8),
+                  Text(
+                    'Fitur ini akan membuka aplikasi telepon default Anda',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          if (phoneNumber != null)
+            ElevatedButton(
+              onPressed: () {
+                // Implementasi panggilan telepon
+                // Untuk sementara, kita log saja
+                print('Memanggil: $phoneNumber');
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Membuka aplikasi telepon...')),
+                );
+              },
+              child: Text('Hubungi'),
+            ),
+        ],
+      ),
+    );
   }
 
   void _showRoleUpdateDialog(BuildContext context, User user) {
-    // ... (sama seperti sebelumnya, tidak berubah)
+    // Convert string role ke enum value jika perlu
+    String? selectedRole = _convertRoleToString(user.role);
+    bool _isUpdating = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: Theme.of(context).primaryColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Ubah Role User',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                      height: 1.5,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Mengubah role untuk '),
+                      TextSpan(
+                        text: user.namaLengkap,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const TextSpan(text: '.\nRole saat ini: '),
+                      TextSpan(
+                        text: _formatRoleName(user.role),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pilih Role Baru',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: selectedRole,
+                        items: [
+                          _buildRoleItem(
+                            'USER',
+                            'User Biasa',
+                            Icons.person_outline,
+                          ),
+                          _buildRoleItem(
+                            'ADMIN',
+                            'Administrator',
+                            Icons.admin_panel_settings,
+                          ),
+                          _buildRoleItem(
+                            'SUPER_ADMIN',
+                            'Super Admin',
+                            Icons.security,
+                          ),
+                          _buildRoleItem(
+                            'SATPAM',
+                            'Satpam',
+                            Icons.security_outlined,
+                          ),
+                          // _buildRoleItem(
+                          //   'VOLUNTEER',
+                          //   'Relawan',
+                          //   Icons.volunteer_activism,
+                          // ),
+                        ],
+                        onChanged: _isUpdating
+                            ? null
+                            : (newRole) {
+                                setState(() {
+                                  selectedRole = newRole;
+                                });
+                              },
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: Colors.grey[500],
+                        ),
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (selectedRole != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _getRoleColor(selectedRole!).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _getRoleColor(selectedRole!).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _getRoleIcon(selectedRole!),
+                          color: _getRoleColor(selectedRole!),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _getRoleDescription(selectedRole!),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: _isUpdating ? null : () => Navigator.pop(context),
+                style: TextButton.styleFrom(foregroundColor: Colors.grey[700]),
+                child: const Text('BATAL'),
+              ),
+              ElevatedButton(
+                // Di dalam onPressed di _showRoleUpdateDialog:
+                onPressed: _isUpdating || selectedRole == null
+                    ? null
+                    : () async {
+                        final currentRole = _convertRoleToString(user.role);
+                        if (selectedRole == currentRole) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Role sudah ${_formatRoleName(selectedRole!)}',
+                                ),
+                                backgroundColor: Colors.orange,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        setState(() => _isUpdating = true);
+
+                        try {
+                          // Gunakan userService yang sudah ada atau buat instance baru
+                          final userService = UserService();
+
+                          // Panggil fungsi update role dari service
+                          await userService.updateUserRole(
+                            user.id,
+                            selectedRole!,
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+
+                            // Refresh data user
+                            await _loadUserData();
+
+                            // Refresh data user setelah update
+                            // Tergantung bagaimana Anda mengelola state di screen ini
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Role ${user.namaLengkap} berhasil diubah ke ${_formatRoleName(selectedRole!)}',
+                                    ),
+                                  ],
+                                ),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => _isUpdating = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Gagal mengubah role: ${e.toString()}',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: _isUpdating
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('SIMPAN'),
+              ),
+            ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Helper functions
+  DropdownMenuItem<String> _buildRoleItem(
+    String value,
+    String label,
+    IconData icon,
+  ) {
+    return DropdownMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: _getRoleColor(value)),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(color: Colors.grey[800])),
+        ],
+      ),
+    );
+  }
+
+  String _convertRoleToString(dynamic role) {
+    if (role == null) return 'USER';
+    if (role is String) return role;
+    return role.toString();
+  }
+
+  String _formatRoleName(String role) {
+    switch (role.toUpperCase()) {
+      case 'SUPER_ADMIN':
+        return 'Super Admin';
+      case 'ADMIN':
+        return 'Admin';
+      case 'SATPAM':
+        return 'Satpam';
+      case 'VOLUNTEER':
+        return 'Relawan';
+      default:
+        return 'User';
+    }
+  }
+
+  Color _getRoleColor(String role) {
+    switch (role.toUpperCase()) {
+      case 'SUPER_ADMIN':
+        return Colors.purple;
+      case 'ADMIN':
+        return Colors.blue;
+      case 'SATPAM':
+        return Colors.orange;
+      case 'VOLUNTEER':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getRoleIcon(String role) {
+    switch (role.toUpperCase()) {
+      case 'SUPER_ADMIN':
+        return Icons.security;
+      case 'ADMIN':
+        return Icons.admin_panel_settings;
+      case 'SATPAM':
+        return Icons.security_outlined;
+      case 'VOLUNTEER':
+        return Icons.volunteer_activism;
+      default:
+        return Icons.person_outline;
+    }
+  }
+
+  String _getRoleDescription(String role) {
+    switch (role.toUpperCase()) {
+      case 'SUPER_ADMIN':
+        return 'Akses penuh ke semua fitur dan sistem';
+      case 'ADMIN':
+        return 'Dapat mengelola user, konten, dan laporan';
+      case 'SATPAM':
+        return 'Dapat mengelola keamanan dan akses area';
+      case 'VOLUNTEER':
+        return 'Dapat membantu kegiatan dan laporan tertentu';
+      default:
+        return 'Akses terbatas untuk fitur umum';
+    }
   }
 
   void _showVerificationDialog(BuildContext context, User user) {
-    // ... (sama seperti sebelumnya, tidak berubah)
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          user.isVerified ? 'Batalkan Verifikasi' : 'Verifikasi User',
+        ),
+        content: Text(
+          user.isVerified
+              ? 'Apakah Anda yakin ingin membatalkan verifikasi ${user.namaLengkap}?'
+              : 'Apakah Anda yakin ingin memverifikasi ${user.namaLengkap}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _updateVerificationStatus(user.id, !user.isVerified);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: user.isVerified ? Colors.red : Colors.green,
+            ),
+            child: Text(user.isVerified ? 'Batalkan' : 'Verifikasi' , style: TextStyle(color: Colors.white),),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeleteConfirmationDialog(BuildContext context, User user) {
-    // ... (sama seperti sebelumnya, tidak berubah)
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Hapus Akun'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Apakah Anda yakin ingin menghapus akun ${user.namaLengkap}?'),
+            SizedBox(height: 8),
+            Text(
+              'Tindakan ini tidak dapat dibatalkan. Semua data user akan dihapus permanen.',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _deleteUserAccount(user.id);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Hapus' , style: TextStyle(color: Colors.white),),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateVerificationStatus(int userId, bool isVerified) async {
+    try {
+      await widget.userService.updateVerificationStatus(userId, isVerified);
+      _refreshData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Status verifikasi berhasil diubah')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengubah status verifikasi: $e')),
+      );
+    }
+  }
+
+  void _deleteUserAccount(int userId) async {
+    try {
+      await widget.userService.deleteUser(userId);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Akun berhasil dihapus')));
+      Navigator.pop(context); // Kembali ke halaman sebelumnya
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menghapus akun: $e')));
+    }
   }
 
   bool _isCurrentUserAdmin() {
     // TODO: Implement admin check dari shared preferences
     return true;
-  }
-
-  Color _getRoleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'admin':
-        return Colors.red;
-      case 'volunteer':
-        return Colors.green;
-      case 'user':
-        return Colors.blue;
-      default:
-        return Colors.grey;
-    }
   }
 
   String _formatDetailedDate(DateTime date) {

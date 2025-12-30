@@ -374,12 +374,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _helpItem(
                 icon: Icons.phone,
                 title: 'Hubungi Kami',
-                subtitle: '021-1234-5678',
+                subtitle: '0856 - 4889 - 8807',
               ),
               _helpItem(
                 icon: Icons.email,
                 title: 'Email Dukungan',
-                subtitle: 'support@wargakita.com',
+                subtitle: 'nabilkencana20@gmail.com',
               ),
               _helpItem(
                 icon: Icons.chat,
@@ -463,7 +463,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               await _performLogout(auth);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Keluar' , style: TextStyle(color: Colors.white)),
+            child: Text('Keluar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -553,8 +553,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _formatTime(DateTime dateTime) {
     return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
-
-
 
   // --------------------- TAB MENU ----------------------
   Widget _buildTabMenu() {
@@ -1224,7 +1222,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         style: TextStyle(
                           fontSize: 14, // Reduced font size
                           fontWeight: FontWeight.bold,
-                          color: Colors.white
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -1519,7 +1517,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         'cardType': 'reports',
       },
       // Di dalam _getFilteredData method, tambahkan card untuk bills:
-       {
+      {
         'color': Color(0xFFE1F5FE),
         'icon': Icons.receipt_long,
         'title': "Tagihan",

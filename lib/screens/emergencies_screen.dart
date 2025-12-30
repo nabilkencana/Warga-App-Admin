@@ -447,7 +447,7 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
                   }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Buat Laporan'),
+                child: const Text('Buat Laporan' , style: TextStyle(color: Colors.white), ),
               ),
             ],
           );
@@ -588,103 +588,751 @@ class _EmergenciesScreenState extends State<EmergenciesScreen> {
   }
 
   void _showManageDialog(BuildContext context, Emergency emergency) {
+    final isActive = emergency.status == 'ACTIVE';
+    final needsVolunteers = emergency.needVolunteer;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Kelola Darurat'),
-        content: Text('Aksi untuk "${emergency.type}"'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          if (emergency.status == 'ACTIVE')
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _showResolveDialog(context, emergency);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: const Text('Selesaikan'),
+          elevation: 8,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header dengan gradient merah
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 20,
+                    horizontal: 24,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.red.shade700, Colors.red.shade600],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // Icon Emergency
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.emergency_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Title dan subtitle
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Kelola Darurat',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Aksi untuk "${emergency.type}"',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Body content
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Status badges
+                      Row(
+                        children: [
+                          // Status Chip
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? Colors.orange.shade50
+                                  : Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isActive
+                                    ? Colors.orange.shade200
+                                    : Colors.green.shade200,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isActive
+                                      ? Icons.access_time_rounded
+                                      : Icons.check_circle_rounded,
+                                  size: 14,
+                                  color: isActive
+                                      ? Colors.orange.shade700
+                                      : Colors.green.shade700,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isActive ? 'Aktif' : 'Selesai',
+                                  style: TextStyle(
+                                    color: isActive
+                                        ? Colors.orange.shade700
+                                        : Colors.green.shade700,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(width: 8),
+
+                          // Volunteer Status
+                          if (needsVolunteers)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.people_rounded,
+                                    size: 14,
+                                    color: Colors.blue.shade700,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Butuh Relawan',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade700,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Divider
+                      Container(height: 1, color: Colors.grey.shade200),
+
+                      const SizedBox(height: 20),
+
+                      // Action Buttons
+                      Column(
+                        children: [
+                          if (isActive)
+                            _buildActionButton(
+                              icon: Icons.check_circle_rounded,
+                              label: 'Tandai Selesai',
+                              subtitle: 'Darurat telah ditangani dengan baik',
+                              color: Colors.green.shade700,
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _showResolveDialog(context, emergency);
+                              },
+                            ),
+
+                          if (isActive && needsVolunteers)
+                            const SizedBox(height: 12),
+
+                          if (needsVolunteers)
+                            _buildActionButton(
+                              icon: Icons.people_alt_rounded,
+                              label: 'Cukup Relawan',
+                              subtitle: 'Tutup pendaftaran relawan',
+                              color: Colors.blue.shade700,
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _showNoVolunteersDialog(context, emergency);
+                              },
+                            ),
+
+                          if (isActive || needsVolunteers)
+                            const SizedBox(height: 16),
+
+                          // Cancel Button
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade700,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              minimumSize: const Size(double.infinity, 48),
+                            ),
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          if (emergency.needVolunteer)
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _showNoVolunteersDialog(context, emergency);
-              },
-              child: const Text('Cukup Relawan'),
+          ),
+        );
+      },
+    );
+  }
+
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
+        shadowColor: color.withOpacity(0.3),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
             ),
+          ),
+          const Icon(Icons.arrow_forward_ios_rounded, size: 16),
         ],
       ),
     );
   }
 
   void _showResolveDialog(BuildContext context, Emergency emergency) {
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Selesaikan Darurat'),
-        content: Text('Tandai "${emergency.type}" sebagai selesai?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                final provider = Provider.of<EmergencyProvider>(
-                  context,
-                  listen: false,
-                );
-                await provider.updateStatus(emergency.id, 'RESOLVED');
-                _showSuccessSnackbar('Darurat berhasil diselesaikan');
-                Navigator.pop(context);
-              } catch (e) {
-                _showErrorSnackbar('Gagal menyelesaikan: $e');
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Ya, Selesaikan'),
-          ),
-        ],
-      ),
+      barrierColor: Colors.black54,
+      barrierDismissible: !isLoading, // Nonaktifkan dismiss saat loading
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 8,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon dengan animasi loading
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: isLoading
+                          ? Container(
+                              key: const ValueKey('loading'),
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.green.shade200,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.green,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              key: const ValueKey('icon'),
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.green.shade200,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.check_circle_rounded,
+                                color: Colors.green.shade700,
+                                size: 32,
+                              ),
+                            ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Title
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isLoading ? 0.7 : 1.0,
+                      child: Text(
+                        isLoading ? 'Menyelesaikan...' : 'Selesaikan Darurat',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Message
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isLoading ? 0.7 : 1.0,
+                      child: Text(
+                        isLoading
+                            ? 'Mohon tunggu sebentar...'
+                            : 'Tandai "${emergency.type}" sebagai selesai?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Buttons
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: isLoading
+                          ? Container(
+                              key: const ValueKey('loadingIndicator'),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.green.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Memproses...',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Row(
+                              key: const ValueKey('buttons'),
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.grey.shade700,
+                                      side: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: const Text('Batal'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () async {
+                                      if (isLoading) return;
+
+                                      setState(() {
+                                        isLoading = true;
+                                      });
+
+                                      try {
+                                        final provider =
+                                            Provider.of<EmergencyProvider>(
+                                              context,
+                                              listen: false,
+                                            );
+                                        await provider.updateStatus(
+                                          emergency.id,
+                                          'RESOLVED',
+                                        );
+
+                                        // Beri jeda kecil agar loading terlihat
+                                        await Future.delayed(
+                                          const Duration(milliseconds: 500),
+                                        );
+
+                                        _showSuccessSnackbar(
+                                          'Darurat berhasil diselesaikan',
+                                        );
+
+                                        if (mounted) {
+                                          Navigator.pop(context);
+                                        }
+                                      } catch (e) {
+                                        setState(() {
+                                          isLoading = false;
+                                        });
+
+                                        if (mounted) {
+                                          _showErrorSnackbar(
+                                            'Gagal menyelesaikan: $e',
+                                          );
+                                        }
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green.shade700,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      elevation: 2,
+                                    ),
+                                    child: const Text('Ya, Selesaikan'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
+
   void _showNoVolunteersDialog(BuildContext context, Emergency emergency) {
+    bool isLoading = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cukup Relawan'),
-        content: const Text('Tandai sudah cukup relawan?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                final provider = Provider.of<EmergencyProvider>(
-                  context,
-                  listen: false,
-                );
-                await provider.toggleNeedVolunteer(
-                  id: emergency.id,
-                  needVolunteer: false,
-                );
-                _showSuccessSnackbar('Status relawan diupdate');
-                Navigator.pop(context);
-              } catch (e) {
-                _showErrorSnackbar('Gagal mengupdate: $e');
-              }
-            },
-            child: const Text('Ya'),
-          ),
-        ],
-      ),
+      barrierColor: Colors.black54,
+      barrierDismissible: !isLoading,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 8,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon dengan animasi loading
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: isLoading
+                          ? Container(
+                              key: const ValueKey('loading'),
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.blue.shade200,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.blue,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              key: const ValueKey('icon'),
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.blue.shade200,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.people_rounded,
+                                color: Colors.blue.shade700,
+                                size: 32,
+                              ),
+                            ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Title
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isLoading ? 0.7 : 1.0,
+                      child: Text(
+                        isLoading ? 'Memproses...' : 'Cukup Relawan',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Message
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: isLoading ? 0.7 : 1.0,
+                      child: Text(
+                        isLoading
+                            ? 'Menutup pendaftaran relawan...'
+                            : 'Tandai sudah cukup relawan untuk situasi ini?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Buttons
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: isLoading
+                          ? Container(
+                              key: const ValueKey('loadingIndicator'),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.blue.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Sedang diproses...',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Row(
+                              key: const ValueKey('buttons'),
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.grey.shade700,
+                                      side: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: const Text('Batal'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () async {
+                                      if (isLoading) return;
+
+                                      setState(() {
+                                        isLoading = true;
+                                      });
+
+                                      try {
+                                        final provider =
+                                            Provider.of<EmergencyProvider>(
+                                              context,
+                                              listen: false,
+                                            );
+                                        await provider.toggleNeedVolunteer(
+                                          id: emergency.id,
+                                          needVolunteer: false,
+                                        );
+
+                                        // Beri jeda kecil agar loading terlihat
+                                        await Future.delayed(
+                                          const Duration(milliseconds: 500),
+                                        );
+
+                                        _showSuccessSnackbar(
+                                          'Status relawan diupdate',
+                                        );
+
+                                        if (mounted) {
+                                          Navigator.pop(context);
+                                        }
+                                      } catch (e) {
+                                        setState(() {
+                                          isLoading = false;
+                                        });
+
+                                        if (mounted) {
+                                          _showErrorSnackbar(
+                                            'Gagal mengupdate: $e',
+                                          );
+                                        }
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue.shade700,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      elevation: 2,
+                                    ),
+                                    child: const Text('Ya, Cukup'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

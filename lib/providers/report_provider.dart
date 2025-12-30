@@ -6,9 +6,9 @@ import '../services/report_service.dart';
 
 class ReportProvider with ChangeNotifier {
   final ReportService _reportService = ReportService();
-  static const String baseUrl = 'http://wargakita.canadev.my.id';
+  static const String baseUrl = 'https://wargakita.canadev.my.id';
   static const String imageBaseUrl =
-      'http://wargakita.canadev.my.id'; // Base URL untuk gambar
+      'https://wargakita.canadev.my.id'; // Base URL untuk gambar
 
   List<Report> _reports = [];
   List<Report> _filteredReports = [];
@@ -55,9 +55,9 @@ class ReportProvider with ChangeNotifier {
   // Set current user ID
   void setCurrentUserId(int? userId) {
     _currentUserId = userId;
+    print('Current user ID set to: $userId'); // Tambahkan debug
     notifyListeners();
   }
-
   Future<void> loadReports({bool refresh = false, String? searchQuery}) async {
     if (refresh) {
       _resetPagination();
@@ -271,7 +271,7 @@ class ReportProvider with ChangeNotifier {
     String? title,
     String? description,
     String? category,
-    File? imageFile,
+    File? imageFile, required bool deleteImage,
   }) async {
     _setLoading(true);
     _error = null;
