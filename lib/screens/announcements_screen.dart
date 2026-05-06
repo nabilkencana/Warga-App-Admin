@@ -1,5 +1,7 @@
 // screens/announcements_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:wargaapp_admin/providers/auth_provider.dart';
 import '../providers/announcement_provider.dart';
@@ -763,6 +765,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     final dayController = TextEditingController();
     DateTime selectedDate = DateTime.now();
     String selectedAudience = 'ALL_RESIDENTS';
+    File? selectedImage;
+    bool isHighlight = false;
 
     String _getIndonesianDayName(DateTime date) {
       const days = [
@@ -784,6 +788,15 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       barrierDismissible: false, // ⬅️ Mencegah dialog ditutup saat loading
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
+          Future<void> _pickImage() async {
+            final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+            if (pickedFile != null) {
+              setState(() {
+                selectedImage = File(pickedFile.path);
+              });
+            }
+          }
+
           return Consumer<AnnouncementProvider>(
             builder: (context, provider, child) {
               return Dialog(
@@ -791,7 +804,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Container(
-                  constraints: BoxConstraints(maxHeight: 600),
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
                   padding: EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -848,6 +861,37 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                // Tambahan Image Picker
+                                GestureDetector(
+                                  onTap: _pickImage,
+                                  child: Container(
+                                    height: 150,
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: selectedImage != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Image.file(
+                                              selectedImage!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        : Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey[400]),
+                                              SizedBox(height: 8),
+                                              Text('Tambah Gambar (Opsional)', style: TextStyle(color: Colors.grey[600])),
+                                            ],
+                                          ),
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+
                                 _buildFormField(
                                   controller: titleController,
                                   label: 'Judul Pengumuman',
@@ -895,6 +939,21 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                       setState(() => selectedAudience = value);
                                     }
                                   },
+                                ),
+                                SizedBox(height: 16),
+
+                                // Tambahan Toggle Highlight
+                                SwitchListTile(
+                                  title: Text('Jadikan Highlight', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  subtitle: Text('Tampilkan sebagai banner utama di aplikasi warga'),
+                                  value: isHighlight,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      isHighlight = value;
+                                    });
+                                  },
+                                  activeColor: Color(0xFF1E88E5),
+                                  contentPadding: EdgeInsets.zero,
                                 ),
                               ],
                             ),
@@ -991,6 +1050,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                       targetAudience: selectedAudience,
                                       date: selectedDate,
                                       day: dayController.text,
+                                      imageFile: selectedImage,
+                                      isHighlight: isHighlight,
                                     );
 
                                     _showSuccessSnackbar(
@@ -1336,6 +1397,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     final dayController = TextEditingController(text: announcement.day);
     DateTime selectedDate = announcement.date;
     String selectedAudience = announcement.targetAudience;
+    File? selectedImage;
+    bool isHighlight = announcement.isHighlight;
 
     String _getIndonesianDayName(DateTime date) {
       const days = [
@@ -1355,6 +1418,15 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
+          Future<void> _pickImage() async {
+            final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+            if (pickedFile != null) {
+              setState(() {
+                selectedImage = File(pickedFile.path);
+              });
+            }
+          }
+
           return Consumer<AnnouncementProvider>(
             builder: (context, provider, child) {
               return Dialog(
@@ -1362,7 +1434,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Container(
-                  constraints: BoxConstraints(maxHeight: 600),
+                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
                   padding: EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1418,6 +1490,45 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                // Image Picker Edit
+                                GestureDetector(
+                                  onTap: _pickImage,
+                                  child: Container(
+                                    height: 150,
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: selectedImage != null
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(12),
+                                            child: Image.file(
+                                              selectedImage!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        : (announcement.imageUrl != null
+                                            ? ClipRRect(
+                                                borderRadius: BorderRadius.circular(12),
+                                                child: Image.network(
+                                                  announcement.imageUrl!,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              )
+                                            : Column(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey[400]),
+                                                  SizedBox(height: 8),
+                                                  Text('Ubah Gambar (Opsional)', style: TextStyle(color: Colors.grey[600])),
+                                                ],
+                                              )),
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+
                                 _buildFormField(
                                   controller: titleController,
                                   label: 'Judul Pengumuman',
@@ -1461,6 +1572,21 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                       setState(() => selectedAudience = value);
                                     }
                                   },
+                                ),
+                                SizedBox(height: 16),
+
+                                // Toggle Highlight Edit
+                                SwitchListTile(
+                                  title: Text('Jadikan Highlight', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  subtitle: Text('Tampilkan sebagai banner utama di aplikasi warga'),
+                                  value: isHighlight,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      isHighlight = value;
+                                    });
+                                  },
+                                  activeColor: Colors.orange,
+                                  contentPadding: EdgeInsets.zero,
                                 ),
                               ],
                             ),
@@ -1541,6 +1667,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                       targetAudience: selectedAudience,
                                       date: selectedDate,
                                       day: dayController.text,
+                                      imageFile: selectedImage,
+                                      isHighlight: isHighlight,
                                     );
                                     _showSuccessSnackbar(
                                       context,

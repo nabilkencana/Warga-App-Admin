@@ -11,6 +11,9 @@ class Announcement {
   final int createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? imageUrl;
+  final String? imagePublicId;
+  final bool isHighlight;
   final Admin? admin;
 
   Announcement({
@@ -23,6 +26,9 @@ class Announcement {
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
+    this.imageUrl,
+    this.imagePublicId,
+    this.isHighlight = false,
     this.admin,
   });
 
@@ -37,6 +43,9 @@ class Announcement {
       createdBy: json['createdBy'] ?? 0,
       createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toString()),
       updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toString()),
+      imageUrl: json['imageUrl'],
+      imagePublicId: json['imagePublicId'],
+      isHighlight: json['isHighlight'] ?? false,
       admin: json['admin'] != null ? Admin.fromJson(json['admin']) : null,
     );
   }
@@ -48,6 +57,9 @@ class Announcement {
       'targetAudience': targetAudience,
       'date': date.toIso8601String(),
       'day': day,
+      'imageUrl': imageUrl,
+      'imagePublicId': imagePublicId,
+      'isHighlight': isHighlight,
     };
   }
 

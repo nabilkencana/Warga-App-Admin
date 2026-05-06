@@ -1,5 +1,6 @@
 // services/announcement_service.dart - REVISI
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +63,37 @@ class AnnouncementService {
     }
   }
 
+  Future<Map<String, dynamic>?> uploadImage(BuildContext context, File imageFile) async {
+    try {
+      final headers = await getHeaders(context);
+      
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/announcements/upload-image'),
+      );
+      
+      request.headers.addAll({
+        'Authorization': headers['Authorization'] ?? '',
+      });
+      
+      request.files.add(
+        await http.MultipartFile.fromPath('image', imageFile.path),
+      );
+      
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Gagal mengupload gambar: ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error uploading image: $e');
+      rethrow;
+    }
+  }
+
   Future<AnnouncementResponse> createAnnouncement({
     required BuildContext context,
     required String title,
@@ -69,6 +101,9 @@ class AnnouncementService {
     required String targetAudience,
     required DateTime date,
     required String day,
+    String? imageUrl,
+    String? imagePublicId,
+    bool isHighlight = false,
   }) async {
     try {
       final headers = await getHeaders(context);
@@ -85,6 +120,9 @@ class AnnouncementService {
           'targetAudience': targetAudience,
           'date': date.toIso8601String(),
           'day': day,
+          if (imageUrl != null) 'imageUrl': imageUrl,
+          if (imagePublicId != null) 'imagePublicId': imagePublicId,
+          'isHighlight': isHighlight,
         }),
       );
 
@@ -117,6 +155,9 @@ class AnnouncementService {
     required String targetAudience,
     required DateTime date,
     required String day,
+    String? imageUrl,
+    String? imagePublicId,
+    bool isHighlight = false,
   }) async {
     try {
       final headers = await getHeaders(context);
@@ -130,6 +171,9 @@ class AnnouncementService {
           'targetAudience': targetAudience,
           'date': date.toIso8601String(),
           'day': day,
+          if (imageUrl != null) 'imageUrl': imageUrl,
+          if (imagePublicId != null) 'imagePublicId': imagePublicId,
+          'isHighlight': isHighlight,
         }),
       );
 

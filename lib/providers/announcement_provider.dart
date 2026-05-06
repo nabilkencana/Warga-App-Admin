@@ -1,4 +1,5 @@
 // providers/announcement_provider.dart - REVISI
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart'; // Tambahkan import ini
 import '../models/announcement.dart';
@@ -75,6 +76,8 @@ class AnnouncementProvider with ChangeNotifier {
     required String targetAudience,
     required DateTime date,
     required String day,
+    File? imageFile,
+    bool isHighlight = false,
   }) async {
     _isCreating = true;
     _error = null;
@@ -82,6 +85,17 @@ class AnnouncementProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      String? imageUrl;
+      String? imagePublicId;
+
+      if (imageFile != null) {
+        final uploadResult = await _announcementService.uploadImage(context, imageFile);
+        if (uploadResult != null) {
+          imageUrl = uploadResult['imageUrl'];
+          imagePublicId = uploadResult['imagePublicId'];
+        }
+      }
+
       // ✅ PERBAIKI: Sesuaikan dengan return type dari service
       final response = await _announcementService.createAnnouncement(
         context: context,
@@ -90,6 +104,9 @@ class AnnouncementProvider with ChangeNotifier {
         targetAudience: targetAudience,
         date: date,
         day: day,
+        imageUrl: imageUrl,
+        imagePublicId: imagePublicId,
+        isHighlight: isHighlight,
       );
 
       // ✅ Response adalah AnnouncementResponse, bukan Map<String, dynamic>
@@ -119,6 +136,8 @@ class AnnouncementProvider with ChangeNotifier {
     required String targetAudience,
     required DateTime date,
     required String day,
+    File? imageFile,
+    bool isHighlight = false,
   }) async {
     _isUpdating = true;
     _error = null;
@@ -126,6 +145,17 @@ class AnnouncementProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      String? imageUrl;
+      String? imagePublicId;
+
+      if (imageFile != null) {
+        final uploadResult = await _announcementService.uploadImage(context, imageFile);
+        if (uploadResult != null) {
+          imageUrl = uploadResult['imageUrl'];
+          imagePublicId = uploadResult['imagePublicId'];
+        }
+      }
+
       final updatedAnnouncement = await _announcementService.updateAnnouncement(
         context: context, // ✅ Tambahkan parameter context
         id: id,
@@ -134,6 +164,9 @@ class AnnouncementProvider with ChangeNotifier {
         targetAudience: targetAudience,
         date: date,
         day: day,
+        imageUrl: imageUrl,
+        imagePublicId: imagePublicId,
+        isHighlight: isHighlight,
       );
 
       final index = _announcements.indexWhere((a) => a.id == id);
